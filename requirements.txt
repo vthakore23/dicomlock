@@ -1,0 +1,16 @@
+pydicom>=2.4.0
+numpy>=1.24.0
+scipy>=1.11.0
+scikit-image>=0.21.0
+Pillow>=10.0.0
+PyWavelets>=1.4.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+python-multipart>=0.0.9
+
+# Pixel decoding backends — required by the CDR/disarm engine to transcode
+# compressed pixel data (JPEG2000/JPEG-LS/JPEG) off the vulnerable hospital codec.
+python-gdcm>=3.0.0
+pylibjpeg>=2.0.0
+pylibjpeg-libjpeg>=2.0.0
+pylibjpeg-openjpeg>=2.0.0

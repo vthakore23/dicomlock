@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "description": "Seed map of DICOM pixel-data decoders to known memory-safety CVEs. SEED LIST — verify and refresh against NVD (nvd.nist.gov) and CISA ICS-medical advisories before relying on it.",
+    "last_verified": "2026-05-23",
+    "note": "The decoder->library mapping is authoritative; the specific CVE lists are illustrative of each decoder's history and are not exhaustive.",
+    "nvd_url_template": "https://nvd.nist.gov/vuln/detail/{id}",
+    "audit_note": "Every CVE id below is auditable at the NVD url above (substitute the id). DicomLock reports decoder EXPOSURE, never a proven exploit."
+  },
+  "decoders": {
+    "OpenJPEG": {
+      "language": "C",
+      "cves": [
+        {"id": "CVE-2020-27814", "cvss": 8.8, "desc": "heap buffer overflow"},
+        {"id": "CVE-2021-29338", "cvss": 5.5, "desc": "integer overflow"},
+        {"id": "CVE-2018-5785", "cvss": 8.8, "desc": "integer overflow -> heap buffer overflow in opj_t2_encode_packet"},
+        {"id": "CVE-2020-15389", "cvss": 6.5, "desc": "use-after-free in jp2.c (jp2_apply_pclr)"}
+      ]
+    },
+    "libjpeg": {
+      "language": "C",
+      "cves": [
+        {"id": "CVE-2020-13790", "cvss": 7.5, "desc": "heap buffer over-read (libjpeg-turbo)"},
+        {"id": "CVE-2018-19664", "cvss": 8.8, "desc": "heap buffer over-read"},
+        {"id": "CVE-2018-20330", "cvss": 8.8, "desc": "integer overflow -> heap buffer overflow in rdppm.c (libjpeg-turbo)"}
+      ]
+    },
+    "CharLS": {
+      "language": "C++",
+      "cves": [],
+      "note": "JPEG-LS decoder; fewer public CVEs but still untrusted C++ parsing attacker-controlled data — audit-worthy."
+    },
+    "OpenJPH": {
+      "language": "C++",
+      "cves": [],
+      "note": "High-Throughput JPEG 2000 (HTJ2K, transfer syntaxes .201-.203) decoder. Newer C++ codec adopted by DICOM in 2021 — less battle-tested than OpenJPEG, little public fuzzing history. Treat as untrusted C++ parsing attacker-controlled data."
+    },
+    "FFmpeg-class": {
+      "language": "C",
+      "cves": [
+        {"id": "CVE-2016-10190", "cvss": 8.8, "desc": "heap buffer overflow (illustrative of FFmpeg's history)"}
+      ],
+      "note": "Extensive CVE history across demuxers/decoders; a 16-year-old FFmpeg bug was surfaced by Anthropic's Claude Mythos in 2026."
+    },
+    "zlib": {
+      "language": "C",
+      "cves": [
+        {"id": "CVE-2022-37434", "cvss": 9.8, "desc": "heap buffer over-read in inflate()"},
+        {"id": "CVE-2018-25032", "cvss": 7.5, "desc": "memory corruption in deflate() (out-of-bounds write)"}
+      ],
+      "note": "Deflated Explicit VR LE (1.2.840.10008.1.2.1.99) routes the ENTIRE data set through zlib inflate before parsing — a broader exposure than per-pixel codecs."
+    },
+    "RLE": {
+      "language": "varies",
+      "cves": []
+    }
+  }
+}

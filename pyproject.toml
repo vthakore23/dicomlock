@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dicomlock"
+version = "0.6.0"
+description = "Open-source, self-hosted DICOM file-security scanner + Content Disarm & Reconstruction (CDR)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Vijay Thakore" }]
+keywords = ["dicom", "security", "cdr", "content-disarm", "medical-imaging", "pacs", "polyglot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+# Core install = scanning AND disarm (CDR) work out of the box. The decoder backends are
+# required so the CDR engine can transcode compressed pixels off the vulnerable hospital codec.
+dependencies = [
+    "pydicom>=2.4.0",
+    "numpy>=1.24.0",
+    "python-gdcm>=3.0.0",
+    "pylibjpeg>=2.0.0",
+    "pylibjpeg-libjpeg>=2.0.0",
+    "pylibjpeg-openjpeg>=2.0.0",
+]
+
+[project.optional-dependencies]
+# Web UI + REST API (python server.py)
+server = ["fastapi>=0.110.0", "uvicorn>=0.29.0", "python-multipart>=0.0.9"]
+# Parked/experimental modules (--deid PHI audit, legacy pixel forensics)
+full = ["scipy>=1.11.0", "scikit-image>=0.21.0", "Pillow>=10.0.0", "PyWavelets>=1.4.0"]
+
+[project.urls]
+# TODO(Vijay): register dicomlock.com (Homepage) before publishing to PyPI.
+Homepage = "https://dicomlock.com"
+Repository = "https://github.com/vthakore23/dicomlock"
+Issues = "https://github.com/vthakore23/dicomlock/issues"
+
+[project.scripts]
+dicomlock = "scanner.cli:main"
+
+[tool.setuptools]
+packages = ["scanner"]
+
+[tool.setuptools.package-data]
+scanner = ["data/*.json"]

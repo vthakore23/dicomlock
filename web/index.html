@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DicomLock — DICOM Security Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect x="2" y="2" width="24" height="24" rx="4" stroke="url(#g)" stroke-width="2"/>
+        <path d="M9 14h10M14 9v10" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+        <defs><linearGradient id="g" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#00F0FF"/><stop offset="1" stop-color="#7B61FF"/></linearGradient></defs>
+      </svg>
+      <span>DicomLock</span>
+    </div>
+    <div class="version">v0.6.0</div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Upload Zone -->
+    <div id="upload-zone" class="upload-zone">
+      <div class="upload-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <path d="M24 32V16m0 0l-8 8m8-8l8 8" stroke="#00F0FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 32v4a4 4 0 004 4h24a4 4 0 004-4v-4" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2>Drop a DICOM file here</h2>
+      <p>or <label for="file-input" class="browse-link">browse</label> to upload</p>
+      <p class="upload-hint">.dcm files up to 500 MB</p>
+      <input type="file" id="file-input" accept=".dcm,.dicom" hidden>
+    </div>
+
+    <!-- Scanning Animation -->
+    <div id="scanning" class="scanning hidden">
+      <div class="scanner-ring"></div>
+      <p class="scan-status">Analyzing DICOM integrity...</p>
+    </div>
+
+    <!-- Report -->
+    <div id="report" class="report hidden">
+      <!-- File Info -->
+      <div class="report-header">
+        <div class="file-info">
+          <h2 id="report-filename"></h2>
+          <div class="file-meta">
+            <span id="report-size"></span>
+            <span class="dot"></span>
+            <span id="report-time"></span>
+          </div>
+          <div class="file-hash" id="report-hash"></div>
+        </div>
+        <button id="scan-another" class="btn-secondary">Scan Another</button>
+      </div>
+
+      <!-- Trust Score -->
+      <div class="trust-section">
+        <div class="trust-label">INTEGRITY SCORE</div>
+        <div class="trust-bar-container">
+          <div class="trust-bar" id="trust-bar"></div>
+        </div>
+        <div class="trust-badge" id="trust-badge"></div>
+      </div>
+
+      <!-- Findings -->
+      <div class="findings-section">
+        <div class="findings-header">
+          <h3>Findings</h3>
+          <span class="findings-count" id="findings-count"></span>
+        </div>
+        <div id="findings-list" class="findings-list"></div>
+      </div>
+
+      <!-- Summary Counts -->
+      <div class="summary-counts" id="summary-counts"></div>
+
+      <!-- Actions -->
+      <button id="disarm-btn" class="btn-primary">Disarm &amp; Download Clean File</button>
+      <button id="download-json" class="btn-secondary">Download JSON Report</button>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

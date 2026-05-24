@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "description": "Allowlist of known-safe vendor private-tag CREATORS for CDR. Policy is DEFAULT-DENY: disarm keeps private tags whose creator is listed here and strips all others (unknown vendor, or smuggled payload). Even an allowlisted tag is stripped if its value carries an executable signature. An incomplete list only over-strips (safe) — it never keeps an unrecognized tag.",
+    "last_updated": "2026-05-22",
+    "note": "SEED — expand from real GE/Siemens/Philips/Canon/Hologic private dictionaries."
+  },
+  "safe_creators": [
+    "GEMS_ACQU_01", "GEMS_IDEN_01", "GEMS_IMAG_01", "GEMS_IMPS_01", "GEMS_PARM_01",
+    "GEMS_PATI_01", "GEMS_RELA_01", "GEMS_SERS_01", "GEMS_STDY_01", "GEMS_HELIOS_01",
+    "GEMS_CT_VES_01", "GEMS_GNHD_01", "GEMS_PETD_01", "GEMS_SHIM_01", "GEMS_ATCL_01",
+    "GEMS_3DSTATE_001", "GEMS_GDXE_FALCON_04", "GEMS_FALCON_03",
+    "SIEMENS CSA HEADER", "SIEMENS CSA NON-IMAGE", "SIEMENS MED DISPLAY",
+    "SIEMENS MR HEADER", "SIEMENS MR SDS 01", "SIEMENS MR SDI 02",
+    "SIEMENS MED SP DXMG WH AWS 1", "SIEMENS MED MG", "SIEMENS Ultrasound SC2000",
+    "Philips Imaging DD 001", "Philips Imaging DD 002", "Philips MR Imaging DD 001",
+    "Philips MR Imaging DD 005", "PHILIPS MR/PART", "PHILIPS IMAGING DD 001",
+    "Philips US Imaging DD 033", "Philips US Imaging DD 023"
+  ]
+}
