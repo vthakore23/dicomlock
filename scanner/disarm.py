@@ -27,7 +27,7 @@ import numpy as np
 import pydicom
 
 from scanner.file_security import (
-    _match_signature,
+    _private_payload_threat,
     check_pixel_dimension_bomb,
     check_length_amplification,
 )
@@ -130,9 +130,14 @@ def filter_private_tags(ds, allow_creators: set) -> list:
         block = t.element >> 8
         creator = creators.get(t.group, {}).get(block)
         keep = bool(creator) and creator in allow_creators
-        # never keep an executable payload, even under a recognized vendor creator
-        if keep and isinstance(elem.value, (bytes, bytearray)) and _match_signature(bytes(elem.value[:8])):
-            keep = False
+        # Never keep a smuggled payload, even under a recognized vendor creator: strip if the value
+        # carries an executable/archive signature (at offset 0 or padded deeper) OR is opaque
+        # high-entropy data. Real vendor metadata is small and low-entropy, so this preserves
+        # legitimate tags while closing the "hide it under an allowlisted creator" escape.
+        if keep and isinstance(elem.value, (bytes, bytearray)):
+            severity, _ = _private_payload_threat(bytes(elem.value))
+            if severity is not None:
+                keep = False
         if keep:
             kept_blocks.add((t.group, block))
         else:

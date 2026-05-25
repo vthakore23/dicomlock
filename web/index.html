@@ -20,7 +20,7 @@
       </svg>
       <span>DicomLock</span>
     </div>
-    <div class="version">v0.7.0</div>
+    <div class="version">v0.8.0</div>
   </header>
 
   <!-- Main Content -->
@@ -37,6 +37,15 @@
       <p>or <label for="file-input" class="browse-link">browse</label> to upload</p>
       <p class="upload-hint">.dcm files up to 500 MB</p>
       <input type="file" id="file-input" accept=".dcm,.dicom" hidden>
+    </div>
+
+    <!-- Scan options -->
+    <div class="scan-options">
+      <label class="toggle">
+        <input type="checkbox" id="deid-toggle">
+        <span>Include PHI / re-identification audit</span>
+      </label>
+      <span class="scan-options-hint">scores residual identifiers, free text, burned-in pixels, and facial geometry</span>
     </div>
 
     <!-- Scanning Animation -->
@@ -68,6 +77,19 @@
           <div class="trust-bar" id="trust-bar"></div>
         </div>
         <div class="trust-badge" id="trust-badge"></div>
+      </div>
+
+      <!-- Re-identification risk (only when the de-id audit was requested) -->
+      <div id="reid-section" class="reid-section hidden">
+        <div class="reid-header">
+          <div class="reid-label">RE-IDENTIFICATION RISK</div>
+          <div class="reid-badge" id="reid-badge"></div>
+        </div>
+        <div class="reid-bar-container">
+          <div class="reid-bar" id="reid-bar"></div>
+        </div>
+        <div class="reid-channels" id="reid-channels"></div>
+        <div class="reid-note" id="reid-note"></div>
       </div>
 
       <!-- Findings -->

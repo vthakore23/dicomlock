@@ -21,16 +21,16 @@ and to coordinate a fix and disclosure timeline with you.
 - A crafted DICOM that **crashes, hangs, or exhausts resources** in the scanner/disarm path
   (the tool becoming the victim).
 - A file that **passes disarm but remains dangerous** (the re-scan verification failing to catch
-  residual danger) — this is the most serious class.
+  residual danger). This is the most serious class.
 - A disarm that **silently alters diagnostic pixels** on a native/lossless input (loss of clinical
   fidelity).
 
 ## Out of scope
 
-- CVEs in upstream decoders/toolkits (libjpeg, OpenJPEG, CharLS, OpenJPH, FFmpeg, pydicom, GDCM) —
-  report those upstream. DicomLock *reports exposure* to these; it does not own their fixes.
-- The bundled `dicom_codec_cve.json` being out of date — open a normal PR to refresh it.
-- Findings labeled "exposure" (e.g. `codec_cve` warnings) behaving as documented — exposure is not
+- CVEs in upstream decoders/toolkits (libjpeg, OpenJPEG, CharLS, OpenJPH, FFmpeg, pydicom, GDCM).
+  Report those upstream. DicomLock *reports exposure* to these; it does not own their fixes.
+- The bundled `dicom_codec_cve.json` being out of date. Open a normal PR to refresh it.
+- Findings labeled "exposure" (e.g. `codec_cve` warnings) behaving as documented. Exposure is not
   a claim of exploitability.
 
 ## Handling test artifacts

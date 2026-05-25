@@ -426,6 +426,149 @@ main {
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* Scan options (de-id toggle) */
+.scan-options {
+  width: 100%;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.scan-options-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Re-identification risk card */
+.reid-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.reid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reid-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+.reid-badge {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.reid-badge.minimal  { background: rgba(0, 230, 118, 0.12); color: var(--green); }
+.reid-badge.low      { background: var(--cyan-dim); color: var(--cyan); }
+.reid-badge.moderate { background: rgba(255, 214, 0, 0.12); color: var(--yellow); }
+.reid-badge.high     { background: rgba(255, 68, 68, 0.18); color: #ff6666; }
+
+.reid-bar-container {
+  width: 100%;
+  height: 10px;
+  background: var(--bg-secondary);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.reid-bar {
+  height: 100%;
+  border-radius: 5px;
+  width: 0%;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reid-bar.minimal  { background: var(--green); }
+.reid-bar.low      { background: var(--cyan); }
+.reid-bar.moderate { background: var(--yellow); }
+.reid-bar.high     { background: var(--red); }
+
+.reid-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reid-channel {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  opacity: 0.6;
+}
+
+.reid-channel.active {
+  opacity: 1;
+  border-color: var(--border-hover);
+}
+
+.reid-channel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reid-channel-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reid-channel-pts {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reid-channel-detail {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.reid-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-top: 16px;
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   header { padding: 12px 16px; }
@@ -433,4 +576,5 @@ main {
   .upload-zone { padding: 40px 20px; }
   .report-header { flex-direction: column; }
   .summary-counts { gap: 12px; }
+  .reid-header { flex-direction: column; align-items: flex-start; }
 }

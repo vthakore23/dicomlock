@@ -47,8 +47,11 @@ async function handleFile(file) {
   const formData = new FormData();
   formData.append("file", file);
 
+  const deid = $("#deid-toggle") && $("#deid-toggle").checked;
+  const url = deid ? `${API}?deid=true` : API;
+
   try {
-    const res = await fetch(API, { method: "POST", body: formData });
+    const res = await fetch(url, { method: "POST", body: formData });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Server error" }));
@@ -92,6 +95,9 @@ function renderReport(report) {
   badge.className = `trust-badge ${level}`;
   badge.textContent = `${summary.overall} (${trustPct}%)`;
 
+  // Re-identification risk (only present when the de-id audit was requested)
+  renderReidRisk(report.reid_risk);
+
   // Findings
   const findingsList = $("#findings-list");
   findingsList.innerHTML = "";
@@ -123,6 +129,77 @@ function renderReport(report) {
       </div>
     `;
   }
+}
+
+// --- Re-identification risk ---
+
+function renderReidRisk(reid) {
+  const section = $("#reid-section");
+  if (!reid || typeof reid.score !== "number") {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+  const band = (reid.band || "").toLowerCase();
+
+  const badge = $("#reid-badge");
+  badge.className = `reid-badge ${band}`;
+  badge.textContent = `${reid.band} · ${reid.score}/100`;
+
+  const bar = $("#reid-bar");
+  bar.className = `reid-bar ${band}`;
+  bar.style.width = "0%";
+  requestAnimationFrame(() => { bar.style.width = `${reid.score}%`; });
+
+  const d = reid.dimensions || {};
+  const rows = [
+    ["Structured identifiers", d.structured_identifiers?.points, describeStruct(d.structured_identifiers)],
+    ["Text identifiers", d.text_identifiers?.points, describeText(d.text_identifiers)],
+    ["Burned-in pixels", d.burned_in_pixels?.points, describeBurned(d.burned_in_pixels)],
+    ["Facial geometry", d.facial_geometry?.points,
+      d.facial_geometry?.detail || "no head-region reconstruction risk detected"],
+  ];
+  const ch = $("#reid-channels");
+  ch.innerHTML = "";
+  for (const [label, pts, detail] of rows) {
+    const el = document.createElement("div");
+    el.className = "reid-channel" + ((pts || 0) > 0 ? " active" : "");
+    el.innerHTML = `
+      <div class="reid-channel-head">
+        <span class="reid-channel-name">${label}</span>
+        <span class="reid-channel-pts">${pts || 0} pts</span>
+      </div>
+      <div class="reid-channel-detail">${escapeHtml(detail || "")}</div>
+    `;
+    ch.appendChild(el);
+  }
+  $("#reid-note").textContent = reid.note || "";
+}
+
+function describeStruct(s) {
+  if (!s) return "";
+  const tags = s.critical_tags || [];
+  const other = s.other_profile_tags || 0;
+  if (!tags.length && !other) return "no residual identifier tags populated";
+  const parts = [];
+  if (tags.length) parts.push(`${tags.length} critical PHI tag${tags.length > 1 ? "s" : ""} (${tags.join(", ")})`);
+  if (other) parts.push(`${other} other Basic-Profile tag${other > 1 ? "s" : ""}`);
+  return parts.join("; ");
+}
+
+function describeText(t) {
+  if (!t) return "";
+  const parts = [];
+  if (t.free_text_phi) parts.push("identifiers in free text");
+  if (t.private_tag_phi) parts.push("PHI in private tags");
+  return parts.length ? parts.join("; ") : "no identifiers in free text or private tags";
+}
+
+function describeBurned(b) {
+  if (!b) return "";
+  const reasons = b.reasons || [];
+  const base = reasons.length ? reasons.join("; ") : "no burned-in text indicators";
+  return b.ocr_available ? base : `${base} (OCR not available)`;
 }
 
 // --- Actions ---

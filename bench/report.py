@@ -1,6 +1,40 @@
 """Aggregate per-file results into the study's metrics and render them."""
 
+import math
 from collections import defaultdict
+
+
+def _wilson(k, n, z=1.96):
+    """Wilson score 95% confidence interval for a proportion. Returns (point, low, high).
+
+    Better than the normal approximation at the extremes (k=n or k=0), which is exactly where a
+    detection/neutralization study lives. Dependency-free."""
+    if n == 0:
+        return (0.0, 0.0, 0.0)
+    p = k / n
+    denom = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (p, max(0.0, center - half), min(1.0, center + half))
+
+
+def _rule_of_three_upper(n, conf=0.95):
+    """One-sided upper bound on a rate when zero events were observed in n trials.
+
+    The 'rule of three' (≈3/n at 95%): if 0/n failed, the true rate is below this with `conf`
+    confidence. The honest way to report a 0/N false-positive or 0/N escape result."""
+    if n == 0:
+        return 1.0
+    return min(1.0, -math.log(1 - conf) / n)
+
+
+def _mcnemar(b, c):
+    """Continuity-corrected McNemar test (1 dof) for two paired binary classifiers on the same
+    files. b, c are the discordant counts. Returns (chi2, p). p uses erfc (no scipy)."""
+    if b + c == 0:
+        return (0.0, 1.0)
+    chi2 = (abs(b - c) - 1) ** 2 / (b + c)
+    return (chi2, math.erfc(math.sqrt(chi2 / 2)))
 
 
 def summarize(results):
@@ -38,6 +72,29 @@ def summarize(results):
             c["neut_n"] += 1
             c["neut"] += int(bool(r["neutralized"]))
 
+    # --- paired comparison: DicomLock vs the parser matrix (McNemar) ---
+    # Restrict to tampered files the parsers actually executed: exclude DoS bombs we pre-identified
+    # and never ran raw (there the parser "outcome" is our protection, not the parser's own verdict).
+    ran = [r for r in tampered if r.get("raw_outcomes")
+           and not all(str(v).startswith("dos") for v in r["raw_outcomes"].values())]
+    # "positive" = the system flagged the file as problematic. For DicomLock that is any non-clean
+    # verdict (block OR warn — a warn is still a raised flag); for the parsers it is "not every
+    # present parser accepted it cleanly". Crediting a DicomLock warn to the parser (e.g. a J2K file
+    # a parser simply cannot decode) would overcount the parsers, so we count it for DicomLock.
+    mc_b = sum(1 for r in ran if r["dl_verdict"] != "clean" and r["toolkits_accept"])
+    mc_c = sum(1 for r in ran if r["dl_verdict"] == "clean" and not r["toolkits_accept"])
+    mc_chi2, mc_p = _mcnemar(mc_b, mc_c)
+
+    stats = {
+        "detection_ci": _wilson(detected, len(tampered)),
+        "neutralization_ci": _wilson(neut, len(danger)),
+        "fidelity_ci": _wilson(fid_exact, len(fid_applicable)),
+        "false_positive_ci": _wilson(fps, len(benign)),
+        "false_positive_upper95": _rule_of_three_upper(len(benign)) if fps == 0 else None,
+        "mcnemar": {"n": len(ran), "b_dicomlock_only": mc_b, "c_parsers_only": mc_c,
+                    "chi2": mc_chi2, "p": mc_p},
+    }
+
     return {
         "targets": _targets(),
         "n_benign": len(benign),
@@ -50,6 +107,7 @@ def summarize(results):
         "fidelity_bit_exact": [fid_exact, len(fid_applicable)],
         "differentiation_accepted_by_all_targets": [accepted_by_all, len(blocked_tampered)],
         "by_class": {k: dict(v) for k, v in sorted(by_class.items())},
+        "stats": stats,
         "failures": {
             "scanner_misses": scanner_misses,
             "cdr_escapes": cdr_escapes,
@@ -69,6 +127,12 @@ def _pct(pair):
     return f"{n}/{d}" + (f" ({100*n//d}%)" if d else "")
 
 
+def _ci(triple):
+    """Format a (point, low, high) proportion triple as a 95% CI string."""
+    _, lo, hi = triple
+    return f"{100*lo:.1f}–{100*hi:.1f}%"
+
+
 def render_markdown(summary):
     L = []
     L.append("# DicomLock benchmark results\n")
@@ -79,14 +143,35 @@ def render_markdown(summary):
                       if bb.get('real_ct_scan_only') else "") + ")")
     L.append(f"Targets: {', '.join(summary['targets'])}  |  "
              f"benign: {benign_note}  |  tampered: {summary['n_tampered']}\n")
-    L.append("| Metric | Result |")
-    L.append("|--------|--------|")
-    L.append(f"| Detection (tampered flagged as expected) | {_pct(summary['detection'])} |")
-    L.append(f"| False positives (benign blocked) | {_pct(summary['false_positives'])} |")
-    L.append(f"| Neutralization (dangerous inputs made safe by CDR) | {_pct(summary['neutralization'])} |")
-    L.append(f"| Fidelity (disarmed pixels bit-exact) | {_pct(summary['fidelity_bit_exact'])} |")
+    st = summary.get("stats", {})
+    L.append("| Metric | Result | 95% CI (Wilson) |")
+    L.append("|--------|--------|-----------------|")
+    L.append(f"| Detection (tampered flagged as expected) | {_pct(summary['detection'])} | "
+             f"{_ci(st['detection_ci']) if st else ''} |")
+    fp_ci = (f"≤ {100*st['false_positive_upper95']:.2f}% (rule of three)"
+             if st and st.get("false_positive_upper95") is not None else (_ci(st['false_positive_ci']) if st else ""))
+    L.append(f"| False positives (benign blocked) | {_pct(summary['false_positives'])} | {fp_ci} |")
+    L.append(f"| Neutralization (dangerous inputs made safe by CDR) | "
+             f"{_pct(summary['neutralization'])} | {_ci(st['neutralization_ci']) if st else ''} |")
+    L.append(f"| Fidelity (disarmed pixels bit-exact) | {_pct(summary['fidelity_bit_exact'])} | "
+             f"{_ci(st['fidelity_ci']) if st else ''} |")
     L.append(f"| Differentiation (DicomLock-flagged files the other toolkits accept) | "
-             f"{_pct(summary['differentiation_accepted_by_all_targets'])} |")
+             f"{_pct(summary['differentiation_accepted_by_all_targets'])} | |")
+
+    if st and st.get("mcnemar"):
+        m = st["mcnemar"]
+        L.append("\n## Statistical confidence\n")
+        L.append("Confidence intervals are Wilson score (95%); a 0-event rate is reported as a "
+                 "one-sided 95% upper bound (rule of three). The parser comparison is McNemar's "
+                 "paired test.\n")
+        p_str = "< 1e-6" if m["p"] < 1e-6 else f"{m['p']:.2g}"
+        L.append(f"**DicomLock vs the parser matrix** ({', '.join(summary['targets'])}), on the "
+                 f"{m['n']} tampered files the parsers actually executed (a flag = a non-clean "
+                 f"DicomLock verdict, or a parser not accepting the file cleanly): DicomLock "
+                 f"flagged {m['b_dicomlock_only']} files every parser accepted as valid; "
+                 f"{m['c_parsers_only']} files DicomLock passed as clean were not accepted by some "
+                 f"parser. McNemar χ² = {m['chi2']:.1f}, p = {p_str}.")
+
     L.append("\n## By attack class\n")
     L.append("| Attack class | n | Detected | Neutralized |")
     L.append("|--------------|---|----------|-------------|")

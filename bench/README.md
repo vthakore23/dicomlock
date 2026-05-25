@@ -62,6 +62,12 @@ to omit it, and the metric falls back to the curated benign samples.
   image) and measures whether CDR neutralizes what the real vulnerable decoder chokes on. Benign J2K
   decodes clean; `--demo FILE.dcm` shows raw crash -> CDR -> re-decode. The known malicious case
   faults the decoder (ASan) raw and is quarantined by CDR.
+- [`fidelity.py`](fidelity.py) (`python -m bench.fidelity`) runs the actual CDR rebuild across a
+  diverse benign corpus (pydicom + pylibjpeg test data spanning many modalities and every common
+  transfer syntax, plus the 580 real TCIA CTs) and reports the bit-exact rate. For native/lossless
+  sources a transcode must be bit-exact vs the acquisition; any miss is a fidelity break. Latest run:
+  **623/623 native+lossless bit-exact, 20/20 lossy preserved-as-decoded, 0 breaks, 13 transfer
+  syntaxes**. `--skip-scale` omits the CTs; `--limit N` caps for a quick pass.
 
 ## Scaling further
 
@@ -78,4 +84,5 @@ to omit it, and the metric falls back to the curated benign samples.
 | `report.py` | aggregate metrics, failures hunted, render markdown |
 | `generate.py` | adversarial structural-mutation corpus generator |
 | `pinned.py` | pinned OpenJPEG 2.3.0+ASan efficacy harness (Docker) |
+| `fidelity.py` | CDR bit-exact fidelity at scale over a diverse benign corpus |
 | `__main__.py` | CLI |

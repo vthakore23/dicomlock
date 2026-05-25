@@ -1,4 +1,4 @@
-# Study Design — Content Disarm & Reconstruction as a Pre-Parse Defense for DICOM
+# Study Design: Content Disarm & Reconstruction as a Pre-Parse Defense for DICOM
 
 **Working title:** *Neutralizing the medical-imaging file attack surface: a fuzzing and
 CVE-reproduction evaluation of Content Disarm & Reconstruction (CDR) for DICOM.*
@@ -8,9 +8,8 @@ harness (`_attack_test/aim3/`) builds a real pinned-vulnerable **OpenJPEG v2.3.0
 target plus a coverage-guided **AFL++** setup, and runs the paired raw-vs-CDR-vs-POST experiment.
 First result: a fuzzer-found malformed JPEG2000 drives the pinned decoder to a fault; CDR neutralizes
 the malicious DICOM carrier (quarantine) and disarms a clean image bit-exact (`aim3/results/`). This
-is the publishable asset behind DicomLock — it converts the tool into evidence. It is written so a
-solo technical author can execute it on public data with no PHI, no IRB, and no partnerships that
-aren't already available.
+is the publishable asset behind DicomLock. It is written so a solo technical author can execute it on
+public data with no PHI, no IRB, and no partnerships that aren't already available.
 
 ---
 
@@ -32,7 +31,7 @@ CVEs, while preserving diagnostic fidelity.
 **Regulatory hook (FDA 524B).** Premarket cybersecurity is enforced for medical devices (final
 guidance Sept 2023; Select Updates finalized Jun 2025; SBOM + refuse-to-accept). PACS/modality
 makers must demonstrate input-handling robustness. A fuzzed-and-hardened DICOM parse+CDR library,
-plus a "CDR vs. real CVEs" result, is directly licensable/contributable to that obligation — and
+plus a "CDR vs. real CVEs" result, is directly licensable/contributable to that obligation, and
 publishable.
 
 ---
@@ -42,7 +41,7 @@ publishable.
 - **RQ1 (attack surface).** How many *unique* crash/hang/OOM defects can structure-aware fuzzing
   surface across widely deployed DICOM parsers and the codecs DICOM routes into, using bounded
   effort on commodity hardware?
-- **RQ2 (CDR efficacy — the core claim).** For inputs that crash a parser/codec (fuzzer-found
+- **RQ2 (CDR efficacy, the core claim).** For inputs that crash a parser/codec (fuzzer-found
   **and** real-CVE triggers), does routing the input through CDR first eliminate the crash?
   - **H1:** CDR neutralizes ≥ the overwhelming majority of file-parse/codec crashers, because it
     rebuilds from a validated canonical form rather than passing the hostile bytes through.
@@ -51,24 +50,24 @@ publishable.
 - **RQ4 (specificity).** Does the *scanner* maintain a near-zero false-positive rate on real
   clinical images while catching the attack corpus?
   - **H3:** FP rate < 1% on real CTs (current measured: 0/575); detection 100% on modeled classes.
-- **RQ5 (scope boundary — honesty).** Which classes does CDR **not** address (e.g. network/auth
+- **RQ5 (scope boundary, honesty).** Which classes does CDR **not** address (e.g. network/auth
   bugs such as Orthanc CVE-2025-0896), making the contribution precise rather than overstated?
 
 ---
 
 ## 3. Specific aims
 
-### Aim 1 — Characterize the DICOM parse/decode attack surface by fuzzing
+### Aim 1: Characterize the DICOM parse/decode attack surface by fuzzing
 Build coverage-guided and structure-aware fuzzing harnesses for:
 - **Parsers:** pydicom (Python), GDCM (C++), dcmtk (C++, via `dcmdump`/`dcm2img`), and optionally
-  dcm4che (Java) — the toolkits real imaging/AI pipelines are built on.
+  dcm4che (Java), the toolkits real imaging/AI pipelines are built on.
 - **Codecs (the deeper surface):** OpenJPEG, libjpeg/libjpeg-turbo, CharLS, OpenJPH, and an
-  FFmpeg-class decoder for the video transfer syntaxes — fuzzed both standalone and *through* the
+  FFmpeg-class decoder for the video transfer syntaxes, fuzzed both standalone and *through* the
   DICOM encapsulation path so findings are reachable from a real file.
 
 Record crashes, hangs (DoS), and OOM; de-duplicate by stack hash into unique defect buckets.
 
-### Aim 2 — Reproduce real, published CVEs as inert triggers
+### Aim 2: Reproduce real, published CVEs as inert triggers
 Pin known-vulnerable versions and construct **inert** DICOM carriers that reach each bug, drawn from
 file-parse/codec memory-safety classes (NOT network/auth):
 - Codec memory safety from the project's auditable map
@@ -77,11 +76,11 @@ file-parse/codec memory-safety classes (NOT network/auth):
   CVE-2022-37434, FFmpeg-class CVE-2016-10190.
 - DICOM-application parse bugs in scope for file CDR: e.g. MicroDicom viewer RCE CVE-2025-5943
   (crafted-file out-of-bounds write); GDCM advisories (CISA ICS-medical, 2025).
-- **Explicitly out of scope** (Aim addresses RQ5): Orthanc auth-bypass CVE-2025-0896 — a server
+- **Explicitly out of scope** (Aim addresses RQ5): Orthanc auth-bypass CVE-2025-0896, a server
   authentication flaw, not a file-parse bug; CDR cannot and should not claim to fix it.
 
-### Aim 3 — Evaluate CDR as a pre-parse mitigation
-The core experiment, run for every trigger from Aims 1–2:
+### Aim 3: Evaluate CDR as a pre-parse mitigation
+The core experiment, run for every trigger from Aims 1 to 2:
 1. Feed the **raw** trigger to the target parser/codec → record outcome (crash/hang/OOM/clean).
 2. Feed the trigger through **DicomLock CDR** (`disarm_or_quarantine`) → obtain a clean file **or** a
    quarantine verdict.
@@ -131,7 +130,7 @@ is a fixed, citable artifact.
 1. An open, reproducible **measurement** of the DICOM file parse/decode attack surface across the
    toolkits hospitals actually run.
 2. The first **open-source, auditable** demonstration that CDR neutralizes both fuzzer-found and
-   real-CVE file/codec triggers **while preserving images bit-exact** — evidence for the
+   real-CVE file/codec triggers **while preserving images bit-exact**. This is evidence for the
    "neutralize, don't patch-race" thesis.
 3. A precise **scope statement** (what CDR does and does not cover), strengthening credibility.
 4. A reusable **fuzzing + CDR harness** and corpus that PACS/modality vendors can run against
@@ -147,7 +146,7 @@ is a fixed, citable artifact.
   bound. Bit-exact applies to native/lossless; lossy/proprietary-only inputs are quarantined, not
   recovered.
 - **Internal:** stack-hash de-duplication can over/under-merge buckets; report the method.
-- **Prior art:** commercial CDR (OPSWAT, Votiro) and academic transcoding (ICDR/ImSan) exist —
+- **Prior art:** commercial CDR (OPSWAT, Votiro) and academic transcoding (ICDR/ImSan) exist;
   novelty is openness, auditability, the paired CVE-reproduction methodology, and PACS-depth, not
   the concept of CDR.
 
@@ -155,7 +154,7 @@ is a fixed, citable artifact.
 
 ## 7. Ethics and responsible disclosure
 
-- All shipped artifacts are **inert** (magic bytes / inert headers + zero padding) — no working
+- All shipped artifacts are **inert** (magic bytes / inert headers + zero padding), with no working
   malware, consistent with [SECURITY.md](SECURITY.md).
 - Any *new* zero-day surfaced by fuzzing goes through coordinated disclosure to the maintainer
   before publication.
@@ -188,30 +187,43 @@ first to establish the result and drive DicomLock credibility.
 
 ---
 
-## 10. Preliminary results (reproduced 2026-05-25, DicomLock v0.7.0)
+## 10. Preliminary results (reproduced 2026-05-25, DicomLock main post-0.7.0 / S9)
 
-These establish false-positive discipline, detection, and CDR neutralization on a curated corpus
-plus one pinned-vulnerable target. The full fuzzing campaign (Aim 1 at scale, memory-corruption
-class, multiple pinned targets) remains future work; the crashes reproduced so far are
-DoS/allocation-class, not memory-corruption.
+These establish false-positive discipline, detection, and CDR neutralization on a hardened
+adversarial corpus plus one pinned-vulnerable target. The full fuzzing campaign (Aim 1 at scale,
+memory-corruption class, multiple pinned targets) remains future work; the crashes reproduced so far
+are DoS/allocation-class, not memory-corruption.
 
-The benchmark engine reproduces the per-class detection, neutralization, fidelity, and
-false-positive numbers in one command: `python -m bench` (see `bench/README.md`). Latest run:
-detection 20/20, false positives 0/590 (15 curated samples + 575 real TCIA CTs, scan-only),
-neutralization 20/20, fidelity 23/23 bit-exact, and 9 of the 14 blocked files are silently accepted
-by all three reference toolkits (pydicom, GDCM, dcmtk).
+The benchmark engine reproduces the per-class detection, neutralization, fidelity, false-positive,
+and statistical-confidence numbers in one command: `python -m bench` (see `bench/README.md`). Latest
+run (80 tampered + 605 benign): detection 80/80, false positives 0/605, neutralization 80/80,
+fidelity 72/72 bit-exact, with Wilson 95% confidence intervals and a McNemar comparison against the
+reference toolkits.
 
 | Result | Number | Harness |
 |--------|--------|---------|
-| False positives, 575 real clinical CTs | **0 / 575** (0 parse errors) | `validate_scale.py` |
-| False positives, mixed-compression corpus (103 files, 12 transfer syntaxes) | **0 on conformant files** (8/103 blocked, every one genuinely non-conformant: no Part-10 header, truncated, or missing image dimensions) | `fp_mixed_corpus.py` |
-| Detection on the tampered corpus | **20 / 20** flagged by the expected check; **0 FP** on the 15 paired clean files | `validate_phase1.py` |
-| Differentiation | pydicom, GDCM, and dcmtk `dcmdump` accept the weaponized files (or crash on the bomb without flagging it); DicomLock raises a verdict on every one | `compare_baseline.py` |
-| CDR, paired raw-vs-CDR | **4 / 4** DoS-bomb inputs neutralized (pre-identified and quarantined, never executed raw); 9 polyglot/payload/deflate files disarmed **bit-exact**; un-decodable files quarantined | `cdr_vs_parsers.py` |
+| Detection (tampered flagged as expected) | **80 / 80**, Wilson 95% CI 95.4 to 100% | `python -m bench` |
+| False positives (605 benign: 30 curated + 575 real TCIA CTs) | **0 / 605**, one-sided 95% upper bound 0.50% (rule of three) | `python -m bench` |
+| Neutralization (dangerous inputs made safe by CDR) | **80 / 80**, Wilson 95% CI 95.4 to 100% | `python -m bench` |
+| Fidelity (disarmed pixels bit-exact) | **72 / 72**, Wilson 95% CI 94.9 to 100% | `python -m bench` |
+| Differentiation vs the parser matrix (McNemar) | DicomLock flagged **51** files every parser (pydicom, GDCM, dcmtk) accepted as valid; **0** files DicomLock passed as clean were rejected by a parser. χ² = 49.0, **p < 1e-6** | `python -m bench` |
+| False positives, mixed-compression corpus (103 files, 12 transfer syntaxes) | **0 on conformant files** (8/103 blocked, every one genuinely non-conformant) | `fp_mixed_corpus.py` |
 | Aim 3 vs a pinned-vulnerable codec | a fuzzer-found malformed JPEG 2000 OOM-kills **OpenJPEG 2.3.0 + ASan**; CDR neutralizes the DICOM carrier (sandboxed quarantine) and disarms a clean image **bit-exact** | `aim3/` (Docker) |
 | Re-identification-risk score | ranks clean = 0/MINIMAL, residual-PHI = 45/MODERATE, dirty = 100/HIGH | `test_reid_score.py` |
 
-The four mixed-compression false positives found while building this table (explicit/implicit
-VR-mismatch length-walk desync; 1-bit bit-packing; YBR_FULL_422 subsampling; legal trailing
-padding) were all fixed before the 0-on-conformant result above; detection held at 20/20 and the
-575-CT scale stayed at 0 FP after the fixes.
+**Falsification round (the scientific method working).** Building the hardened corpus and probing the
+defense at its implementation boundaries surfaced five real gaps the homogeneous corpus had hidden,
+all then fixed (4) or documented as a bounded residual (1), with zero new false positives:
+(1) a genuine **CDR escape**, a payload hidden under an allowlisted vendor creator survived disarm,
+because the exe-override only matched a listed signature at byte 0 (now: any signature in a 4 KiB
+window, or high entropy, is stripped even under a known creator; a control under an unknown creator
+confirmed the allowlist itself was correct); (2) missed OLE/CFBF, CAB, and Zstd polyglot signatures;
+(3) an unvalidated length bomb in the File Meta group; (4) a moderate-amplification (100 to 1000×)
+decompression bomb that only warned about codec exposure; (5) a sub-1 KiB private payload below the
+old size floor. Fix thresholds were grounded in measured real vendor data (61 files, 212 private
+binary tags: median 4 bytes, maximum entropy 3.75), so the high-entropy strip never fires on
+legitimate metadata. An image/media polyglot tier was prototyped and removed after it false-flagged a
+standard test file carrying a benign TIFF-magic preamble. The documented residual: a low-entropy,
+signature-less blob under an allowlisted creator is preserved by design, being indistinguishable from
+real vendor data. (Earlier mixed-compression false positives, VR-mismatch length-walk desync, 1-bit
+bit-packing, YBR_FULL_422 subsampling, and legal trailing padding, were fixed in a prior round.)

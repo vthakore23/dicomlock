@@ -1,6 +1,6 @@
 # Contributing to DicomLock
 
-Thanks for helping harden medical imaging. DicomLock is Apache-2.0 and welcomes contributions —
+Thanks for helping harden medical imaging. DicomLock is Apache-2.0 and welcomes contributions,
 especially from imaging-informatics engineers, security researchers, and PACS/vendor teams.
 
 ## Ground rules
@@ -8,7 +8,7 @@ especially from imaging-informatics engineers, security researchers, and PACS/ve
 - **Inert fixtures only.** Never commit working malware. Attack fixtures carry magic bytes / inert
   headers + zero padding, exactly like [`make_tampered_corpus.py`](make_tampered_corpus.py).
 - **Honesty over hype.** Checks report *exposure*, not proven exploits. Keep severities truthful
-  (codec routing is `warn`, not `critical`). Don't claim DicomLock breaks encryption — it doesn't.
+  (codec routing is `warn`, not `critical`). Don't claim DicomLock breaks encryption. It doesn't.
 - **No regressions on the two headline metrics:** 0 false positives on the 575 real CTs, and 100%
   detection on the attack corpus. CI of your change should reproduce both.
 
@@ -39,15 +39,15 @@ to the `expected` map in `_attack_test/validate_phase1.py` so the regression sui
 
 ## High-value contribution areas
 
-- **Codec-CVE map** ([`scanner/data/dicom_codec_cve.json`](scanner/data/dicom_codec_cve.json)) —
+- **Codec-CVE map** ([`scanner/data/dicom_codec_cve.json`](scanner/data/dicom_codec_cve.json)):
   refresh against NVD/CISA; every CVE id must be auditable at the NVD url in `_meta`.
 - **Vendor private-tag allowlist**
-  ([`scanner/data/vendor_private_tags.json`](scanner/data/vendor_private_tags.json)) — expand from
+  ([`scanner/data/vendor_private_tags.json`](scanner/data/vendor_private_tags.json)): expand from
   real GE/Siemens/Philips/Canon/Hologic private dictionaries. Default-deny: an incomplete list only
   over-strips (safe), so accuracy matters more than completeness.
-- **Decoder coverage** — broaden transcode paths in [`scanner/disarm.py`](scanner/disarm.py) and
-  the TransferSyntax→decoder map in [`scanner/codec_cve.py`](scanner/codec_cve.py).
-- **New attack classes** — bring a real, demonstrable construction (with a citation/CVE class) plus
+- **Decoder coverage**: broaden transcode paths in [`scanner/disarm.py`](scanner/disarm.py) and
+  the TransferSyntax-to-decoder map in [`scanner/codec_cve.py`](scanner/codec_cve.py).
+- **New attack classes**: bring a real, demonstrable construction (with a citation/CVE class) plus
   an inert fixture and a check.
 
 ## Style
@@ -66,4 +66,4 @@ git commit -s -m "..."
 
 ## Reporting security issues
 
-Don't open a public issue for a vulnerability in DicomLock itself — see [SECURITY.md](SECURITY.md).
+Don't open a public issue for a vulnerability in DicomLock itself. See [SECURITY.md](SECURITY.md).

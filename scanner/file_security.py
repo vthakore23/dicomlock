@@ -20,6 +20,7 @@ from scanner.findings import Finding
 # Executable / archive magic signatures (used for preamble + private-tag carving).
 # Longer/more-specific signatures first so _match_signature reports the most precise hit.
 _EXE_SIGS = {
+    b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1": "OLE compound file (MSI installer / legacy Office macro)",
     b"\x7fELF": "Linux ELF executable",
     b"\xca\xfe\xba\xbe": "macOS Mach-O / Java class",
     b"\xcf\xfa\xed\xfe": "macOS Mach-O 64-bit",
@@ -28,6 +29,8 @@ _EXE_SIGS = {
     b"Rar!\x1a\x07": "RAR archive",
     b"7z\xbc\xaf\x27\x1c": "7-Zip archive",
     b"\xfd7zXZ\x00": "XZ archive",
+    b"\x28\xb5\x2f\xfd": "Zstandard archive",
+    b"MSCF": "Microsoft Cabinet archive",
     b"BZh": "bzip2 archive",
     b"\x04\x22\x4d\x18": "LZ4 frame",
     b"\x00asm": "WebAssembly module",
@@ -40,6 +43,19 @@ _EXE_SIGS = {
     b"MZ": "Windows PE executable",
     b"#!": "shell script",
 }
+
+# NOTE: an image/media polyglot tier (PNG/JPEG/TIFF/RIFF magic in the preamble -> warn) was
+# prototyped and removed: a 128-byte preamble is too small to hold a real image, image-format
+# magic there is usually a benign artifact (e.g. pydicom's own CT_small_pydicom.dcm carries a
+# TIFF header whose IFD offset points past EOF), and the non-standard-preamble entropy finding
+# plus preamble-zeroing in CDR already cover any non-zero preamble. Flagging it produced false
+# alarms on clean files for no added defense. Executable/installer/archive magic (above) is the
+# part that warrants a polyglot verdict; those signatures do not appear benignly in a preamble.
+
+# Signatures specific enough (>= 4 bytes) to scan for *inside* a payload window, so a payload
+# padded so its header is not at offset 0 is still caught. Short 2-3 byte signatures (MZ, BZh,
+# gzip, shell) are only matched at offset 0 to avoid coincidental hits in benign binary data.
+_LONG_EXE_SIGS = {sig: name for sig, name in _EXE_SIGS.items() if len(sig) >= 4}
 
 # Explicit-VR value representations that use 2 reserved bytes + a 4-byte length.
 # Everything else uses a 2-byte length. (DICOM PS3.5)
@@ -68,6 +84,39 @@ def _match_signature(head: bytes):
         if head[: len(sig)] == sig:
             return name
     return None
+
+
+def _scan_for_signature(data: bytes, window: int = 4096):
+    """Find an executable/archive signature at offset 0 (any signature) or a long, specific
+    signature anywhere within the leading window (catches a payload padded so its header is not at
+    byte 0). Returns (name, offset) or (None, -1)."""
+    name = _match_signature(data)
+    if name:
+        return name, 0
+    head = data[:window]
+    for sig, sname in _LONG_EXE_SIGS.items():
+        idx = head.find(sig)
+        if idx > 0:
+            return sname, idx
+    return None, -1
+
+
+def _private_payload_threat(value: bytes):
+    """Classify a private-tag binary value as a smuggled payload.
+
+    Returns (severity, description) or (None, None). Grounded in measured real vendor data
+    (575 CTs + pydicom test files: max private-binary entropy 3.75, p95 size 12 bytes), so the
+    entropy floor of 7.0 and the 256-byte window never fire on legitimate vendor metadata.
+    """
+    name, idx = _scan_for_signature(value)
+    if name:
+        where = "header" if idx == 0 else f"offset {idx}"
+        return "critical", f"{name} signature at {where}"
+    if len(value) >= 256:
+        ent = _shannon_entropy(value[:4096])
+        if ent > 7.0:
+            return "warn", f"opaque high-entropy data (entropy {ent:.1f}/8)"
+    return None, None
 
 
 def check_preamble(filepath: str) -> list[Finding]:
@@ -109,16 +158,21 @@ def check_preamble(filepath: str) -> list[Finding]:
 
 
 def _locate_dataset(data: bytes):
-    """Return (main_dataset_offset, is_implicit_vr, is_little_endian).
+    """Return (main_dataset_offset, is_implicit_vr, is_little_endian, is_deflated, meta_bomb).
 
     File Meta (group 0002) is always Explicit VR Little Endian. We walk it to find both
-    the transfer syntax and where the main data set begins. If there is no File Meta,
-    pydicom's force-read defaults to Implicit VR LE starting right after 'DICM'.
+    the transfer syntax and where the main data set begins, and we validate each element's
+    declared length against the bytes that remain (a length bomb in the File Meta group is
+    just as much an allocation DoS as one in the main data set, and the main-dataset walk
+    would otherwise never see it because a bomb here pushes the offset past EOF). meta_bomb is
+    (byte_offset, declared_length, remaining) or None. If there is no File Meta, pydicom's
+    force-read defaults to Implicit VR LE starting right after 'DICM'.
     """
     n = len(data)
     if data[132:134] == b"\x02\x00":  # File Meta group present
         off = 132
         ts = None
+        meta_bomb = None
         while off + 8 <= n:
             grp = struct.unpack_from("<H", data, off)[0]
             if grp != 0x0002:
@@ -131,14 +185,17 @@ def _locate_dataset(data: bytes):
             else:
                 length = struct.unpack_from("<H", data, off + 6)[0]
                 voff = off + 8
+            if length != _UNDEFINED_LENGTH and length > n - voff:
+                meta_bomb = (off, length, n - voff)
+                break
             if (grp, el) == (0x0002, 0x0010):
                 ts = data[voff: voff + length].rstrip(b"\x00 ").decode("ascii", "ignore")
             off = voff + (0 if length == _UNDEFINED_LENGTH else length)
         is_implicit = (ts == "1.2.840.10008.1.2")
         is_le = (ts != "1.2.840.10008.1.2.2")
         is_deflated = (ts == _DEFLATED_TS)
-        return off, is_implicit, is_le, is_deflated
-    return 132, True, True, False
+        return off, is_implicit, is_le, is_deflated, meta_bomb
+    return 132, True, True, False, None
 
 
 def check_length_amplification(filepath: str) -> list[Finding]:
@@ -154,10 +211,22 @@ def check_length_amplification(filepath: str) -> list[Finding]:
         return []  # not a Part-10 file; check_preamble handles this
 
     try:
-        off, is_implicit, is_le, is_deflated = _locate_dataset(data)
+        off, is_implicit, is_le, is_deflated, meta_bomb = _locate_dataset(data)
     except Exception:
         return [Finding("length_amplification", "info",
                         "Structural scan skipped (could not resolve transfer syntax)")]
+
+    if meta_bomb is not None:
+        boff, length, remaining = meta_bomb
+        ratio = length / max(n, 1)
+        return [Finding(
+            "length_amplification", "critical",
+            f"File Meta element at byte {boff} declares {length:,} bytes but only "
+            f"{remaining:,} remain",
+            f"Declared length is {ratio:,.0f}x the file size — and it sits in the File Meta "
+            "group (0002), which every DICOM parser reads first. A naive parser allocating this "
+            "would exhaust memory before it even reaches the image. DicomLock rejects it before "
+            "any allocation occurs.")]
 
     if is_deflated:
         # Deflated Explicit VR LE: the data set after File Meta is zlib-compressed, so its raw
@@ -261,7 +330,8 @@ def check_pixel_dimension_bomb(ds) -> list[Finding]:
     """
     FRAME_CAP = 1024 ** 3            # 1 GiB: implausible for a single real image frame
     AMP_FLOOR = 256 * 1024 ** 2      # 256 MiB: ignore amplification below this declared size
-    AMP_RATIO = 1000                 # declared:stored ratio no real codec reaches
+    AMP_RATIO = 1000                 # declared:stored ratio no real codec reaches -> block
+    AMP_WARN_RATIO = 100             # "real ratios are well under 100x" -> warn in the 100-1000 band
 
     def _int(v, default=0):
         try:
@@ -300,21 +370,38 @@ def check_pixel_dimension_bomb(ds) -> list[Finding]:
     except Exception:
         stored = None
 
-    if stored and declared > AMP_FLOOR and declared / stored > AMP_RATIO:
-        return [Finding(
-            "pixel_dimension_bomb", "critical",
-            f"Pixel payload is {stored:,} bytes but declares a {declared / 1024**3:.1f} GiB "
-            f"decoded image ({declared // max(stored,1):,}x amplification)",
-            "A tiny encapsulated payload that claims to decode to gigabytes is a decompression "
-            "bomb: the decoder allocates the full buffer and exhausts memory. Real compression "
-            "ratios are well under 100x. CDR quarantines it.")]
+    if stored and declared > AMP_FLOOR:
+        ratio = declared / stored
+        if ratio > AMP_RATIO:
+            return [Finding(
+                "pixel_dimension_bomb", "critical",
+                f"Pixel payload is {stored:,} bytes but declares a {declared / 1024**3:.1f} GiB "
+                f"decoded image ({int(ratio):,}x amplification)",
+                "A tiny encapsulated payload that claims to decode to gigabytes is a decompression "
+                "bomb: the decoder allocates the full buffer and exhausts memory. Real compression "
+                "ratios are well under 100x. CDR quarantines it.")]
+        if ratio > AMP_WARN_RATIO:
+            return [Finding(
+                "pixel_dimension_bomb", "warn",
+                f"Pixel payload is {stored:,} bytes but declares a {declared / 1024**2:.0f} MiB "
+                f"decoded image ({int(ratio):,}x amplification)",
+                "This amplification is well above any real codec (lossless ~3x, lossy ~20x), so a "
+                "decoder sizing its buffer from the header would over-allocate. Below the hard "
+                "quarantine threshold, but disarm decodes it in the resource-limited sandbox so "
+                "the over-allocation is contained.")]
 
     return [Finding("pixel_dimension_bomb", "pass",
                     f"Declared image buffer {declared / 1024**2:.1f} MiB within sane limits")]
 
 
-def check_private_tag_payloads(ds, min_size: int = 1024) -> list[Finding]:
-    """Scan private (odd-group) tags for embedded executables / opaque high-entropy blobs."""
+def check_private_tag_payloads(ds, min_size: int = 8) -> list[Finding]:
+    """Scan private (odd-group) tags for embedded executables / opaque high-entropy blobs.
+
+    Uses the same _private_payload_threat classifier the CDR engine uses to decide what to strip,
+    so detection and disarm never disagree (a payload the scanner flags is one CDR removes, even
+    under an allowlisted vendor creator). It catches a signature at offset 0, a long signature
+    padded deeper into the value, and high-entropy opaque blobs.
+    """
     findings = []
     try:
         for elem in ds:
@@ -323,22 +410,19 @@ def check_private_tag_payloads(ds, min_size: int = 1024) -> list[Finding]:
             val = elem.value
             if not isinstance(val, (bytes, bytearray)) or len(val) < min_size:
                 continue
-            sig = _match_signature(bytes(val[:8]))
-            if sig:
+            severity, desc = _private_payload_threat(bytes(val))
+            if severity == "critical":
                 findings.append(Finding(
                     "private_tag_payload", "critical",
-                    f"Private tag {elem.tag} carries a {sig} payload ({len(val):,} bytes)",
-                    "Private (odd-group) tags hold arbitrary binary. An executable signature here "
-                    "indicates a smuggled payload. CDR strips/quarantines private tags."))
-            else:
-                ent = _shannon_entropy(bytes(val[:4096]))
-                if ent > 7.2:
-                    findings.append(Finding(
-                        "private_tag_payload", "warn",
-                        f"Private tag {elem.tag} holds {len(val):,} bytes of high-entropy data "
-                        f"(entropy {ent:.1f}/8)",
-                        "High-entropy private binary can conceal encrypted or compressed payloads. "
-                        "Review or strip via CDR."))
+                    f"Private tag {elem.tag} carries a payload ({len(val):,} bytes): {desc}",
+                    "Private (odd-group) tags hold arbitrary binary. An executable/archive "
+                    "signature here indicates a smuggled payload. CDR strips/quarantines it."))
+            elif severity == "warn":
+                findings.append(Finding(
+                    "private_tag_payload", "warn",
+                    f"Private tag {elem.tag} holds {len(val):,} bytes of {desc}",
+                    "High-entropy private binary can conceal encrypted or compressed payloads. "
+                    "Review or strip via CDR."))
     except Exception:
         pass
 

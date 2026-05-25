@@ -1,4 +1,4 @@
-# DicomLock — Threat Model
+# DicomLock Threat Model
 
 This document states precisely what DicomLock defends against, what it does **not** claim, and the
 residual risk that remains. Credibility depends on this honesty: DicomLock reports *exposure*, not
@@ -8,19 +8,19 @@ proven exploits, and it is a sanitization tool, not a medical device.
 
 ## Assets being protected
 
-1. **The software that parses the file** — the PACS, viewer, AI ingestion pipeline, de-id pipeline,
+1. **The software that parses the file**: the PACS, viewer, AI ingestion pipeline, de-id pipeline,
    and DICOM toolkits (pydicom, GDCM, dcmtk, dcm4che) and the image/video codecs they invoke
    (libjpeg, OpenJPEG, CharLS, OpenJPH, FFmpeg-class). These are slow-to-patch and run deep inside
    hospital networks.
-2. **Patient data confidentiality** — PHI in standard and private tags; the requirement that no
+2. **Patient data confidentiality**: PHI in standard and private tags, and the requirement that no
    data leaves the building during scanning/disarm.
-3. **Clinical fidelity** — the diagnostic content of the image must survive disarm unchanged.
+3. **Clinical fidelity**: the diagnostic content of the image must survive disarm unchanged.
 
 ## Trust boundary
 
 DICOM enters from an **untrusted source**: an outside facility, a patient CD/USB, an external
 upload, an API, or a federated research transfer. DicomLock sits at that boundary and is itself a
-parser of hostile input — so the tool must not become the victim (see "Tool safety").
+parser of hostile input, so the tool must not become the victim (see "Tool safety").
 
 ---
 
@@ -38,7 +38,7 @@ already, or who controls the PACS itself.
 
 | # | Threat | DICOM mechanism | DicomLock defense |
 |---|--------|-----------------|-------------------|
-| T1 | **Polyglot malware** | executable/archive header in the 128-byte preamble (CVE-2019-11687, ELFDICOM) | `check_preamble` flags 7 signature classes + a preamble-entropy heuristic; CDR **zeroes the preamble** |
+| T1 | **Polyglot malware** | executable/archive header in the 128-byte preamble (CVE-2019-11687, ELFDICOM) | `check_preamble` matches executable and archive signatures plus a preamble-entropy heuristic; CDR **zeroes the preamble** |
 | T2 | **Parser length bomb (DoS)** | element declares ≫ remaining bytes (e.g. 140 B → ~4 GB) | `check_length_amplification` byte-walks pre-parse; **quarantine** (un-disarmable) |
 | T3 | **Sequence-nesting bomb** | deeply nested SQ exhausts memory/stack | `check_sequence_depth` rejects depth beyond a safe limit |
 | T4 | **Allocation / decompression bomb** | header declares a multi-GiB frame, or a tiny encapsulated payload claims to decode to GiB | `check_pixel_dimension_bomb` (header-only, never decodes); **quarantine** |
@@ -58,7 +58,7 @@ bit-exact (decoded pixel array pre/post) on native/lossless transcodes.
 - **It does not break or weaken encryption.** Mythos finds implementation/deployment flaws *around*
   ciphers; it does not break AES/RSA, and neither does this tool.
 - **Codec exposure is exposure, not exploitation.** A `codec_cve` finding means the file routes
-  through a CVE-bearing decoder — *not* that the file exploits a CVE. The bundled CVE map is a
+  through a CVE-bearing decoder, *not* that the file exploits a CVE. The bundled CVE map is a
   **seed**; verify against NVD/CISA.
 - **It is not antivirus and not a network/device monitor.** It inspects the *file*; it does not
   watch traffic or endpoints (that is the Claroty/Cylera/Asimily/Forescout lane).
@@ -90,10 +90,10 @@ bit-exact (decoded pixel array pre/post) on native/lossless transcodes.
   so deployments handling deflate should treat it as elevated exposure.
 - **Seed data files:** `dicom_codec_cve.json` and `vendor_private_tags.json` are maintained seeds.
   An incomplete allowlist only *over-strips* (safe); an out-of-date CVE list under-reports.
-- **Detection checks are deterministic rules** with thresholds tuned ~300–1000× above the largest
-  real clinical image measured (3.1 MiB across 575 CTs). Novel structural attacks outside the
-  modeled classes may pass the *scanner* — which is exactly why CDR rebuilds from a canonical form
-  rather than relying on detection alone.
+- **Detection checks are deterministic rules** with thresholds set roughly 300 to 1000 times above
+  the largest real clinical image measured (3.1 MiB across 575 CTs). Novel structural attacks
+  outside the modeled classes may pass the *scanner*, which is exactly why CDR rebuilds from a
+  canonical form rather than relying on detection alone.
 
 ---
 
@@ -101,7 +101,7 @@ bit-exact (decoded pixel array pre/post) on native/lossless transcodes.
 
 DicomLock parses hostile input, so:
 
-- Allocation/length/decompression bombs are rejected **before** any pixel decode — the disarm step
+- Allocation/length/decompression bombs are rejected **before** any pixel decode. The disarm step
   refuses them up front so a crafted file cannot DoS the tool itself.
 - Bomb checks are **header/byte-level only**; they never allocate or decode the declared buffer.
 - **The codec decode is isolated.** Disarm decodes compressed pixels (the one step that runs a

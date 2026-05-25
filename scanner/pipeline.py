@@ -26,7 +26,7 @@ from scanner.metadata import run_metadata_checks
 from scanner.deid_auditor import run_deid_checks, score_reidentification_risk
 from scanner.disarm import disarm
 
-SCANNER_VERSION = "DicomLock v0.7.0"
+SCANNER_VERSION = "DicomLock v0.8.0"
 _DANGER = {"fail", "critical"}
 
 
