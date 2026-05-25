@@ -3,8 +3,10 @@ DicomLock — Content Disarm & Reconstruction (CDR) engine (Module 5).
 
 Rebuilds a clean, clinically-equivalent DICOM from a parsed dataset:
   - zero the 128-byte preamble       -> neutralizes polyglots (CVE-2019-11687 / ELFDICOM)
-  - transcode compressed pixel data  -> removes the codec attack surface. NO NEW LOSS: we
-    decode the image once and store it uncompressed; the pixels are preserved exactly.
+  - transcode compressed pixel data  -> removes the codec attack surface. NO NEW LOSS: we decode
+    the image once and store it uncompressed. For a LOSSLESS source the result is bit-exact vs the
+    original acquisition; for a LOSSY source the pixels are preserved exactly as decoded (no new
+    loss) but we do not claim bit-exact vs the acquisition. See DisarmResult.source_lossy.
   - strip private (odd-group) tags   -> removes payload-smuggling space + PHI risk
 
 Design property: this neutralizes UNKNOWN attacks because it rebuilds from a validated
@@ -17,18 +19,19 @@ scanner rejects/quarantines those. CDR is for files that carry a real image to p
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
 import pydicom
-from pydicom.uid import ExplicitVRLittleEndian
 
 from scanner.file_security import (
     _match_signature,
     check_pixel_dimension_bomb,
     check_length_amplification,
 )
+from scanner._sandbox import safe_transcode_to_native, _unlink as _safe_unlink
 from scanner._resources import data_file
 
 # Native (non-encapsulated) transfer syntaxes — no third-party codec involved.
@@ -38,6 +41,35 @@ _NATIVE_TS = {
     "1.2.840.10008.1.2.2",   # Explicit VR BE
 }
 
+# Deflated Explicit VR LE: the whole data set is zlib-wrapped but the PIXELS are uncompressed,
+# so transcoding off it is lossless.
+_DEFLATE_TS = "1.2.840.10008.1.2.1.99"
+
+# Encapsulated transfer syntaxes that are mathematically LOSSLESS — a transcode to native preserves
+# the pixels bit-exact vs the original acquisition. Everything else encapsulated (JPEG baseline/
+# extended lossy, JPEG2000 lossy .91/.93, JPEG-LS near-lossless .81, MPEG/H.264/HEVC video, HTJ2K
+# .203) is LOSSY: we decode once and store the pixels exactly as decoded (no NEW loss), but we do
+# NOT claim bit-exact vs the original acquisition (that loss already happened in the source).
+_LOSSLESS_ENCAPSULATED = {
+    "1.2.840.10008.1.2.5",      # RLE Lossless
+    "1.2.840.10008.1.2.4.57",   # JPEG Lossless (P14)
+    "1.2.840.10008.1.2.4.58",   # JPEG Lossless Hierarchical (P15) [retired]
+    "1.2.840.10008.1.2.4.65",   # JPEG Lossless Hierarchical (P28) [retired]
+    "1.2.840.10008.1.2.4.66",   # JPEG Lossless Hierarchical (P29) [retired]
+    "1.2.840.10008.1.2.4.70",   # JPEG Lossless SV1 (P14)
+    "1.2.840.10008.1.2.4.80",   # JPEG-LS Lossless
+    "1.2.840.10008.1.2.4.90",   # JPEG 2000 Lossless
+    "1.2.840.10008.1.2.4.92",   # JPEG 2000 P2 Multi-component Lossless
+    "1.2.840.10008.1.2.4.201",  # HTJ2K Lossless
+    "1.2.840.10008.1.2.4.202",  # HTJ2K Lossless RPCL
+}
+
+
+def _source_is_lossless(ts: str) -> bool:
+    """True if a transcode off `ts` preserves the original acquisition bit-exact. Unknown/unlisted
+    encapsulated syntaxes are treated as lossy (conservative: we only claim bit-exact when sure)."""
+    return ts in _NATIVE_TS or ts == _DEFLATE_TS or ts in _LOSSLESS_ENCAPSULATED
+
 
 @dataclass
 class DisarmResult:
@@ -45,7 +77,11 @@ class DisarmResult:
     changes: list = field(default_factory=list)
     transcoded: bool = False
     private_removed: int = 0
-    image_preserved: Optional[bool] = None  # True/False (bit-exact) or None if not verified
+    # image_preserved = the disarmed native pixels equal the pixels as decoded from the source.
+    # Interpret with source_lossy: if False, that means bit-exact vs the original acquisition; if
+    # True, it means "preserved exactly as decoded" (no NEW loss) but the source was already lossy.
+    image_preserved: Optional[bool] = None
+    source_lossy: Optional[bool] = None  # None = native/no transcode; False = lossless; True = lossy
     error: Optional[str] = None
 
 
@@ -131,29 +167,50 @@ def disarm(filepath: str, out_path: Optional[str] = None,
         return DisarmResult(None, error="not disarmable (allocation/length bomb): "
                             + "; ".join(f.message for f in blocking))
 
-    # Decoded pixels BEFORE any change — the ground truth for the equivalence check.
+    changes = []
+
+    # Classify the source codec so fidelity is labeled honestly (see _source_is_lossless).
+    # None = native (no transcode); False = lossless transcode (bit-exact); True = lossy source.
+    ts = str(getattr(getattr(ds, "file_meta", None), "TransferSyntaxUID", "") or "")
+    source_lossy = None if (not ts or ts in _NATIVE_TS) else (not _source_is_lossless(ts))
+
+    # 1) Transcode compressed/encapsulated pixel data -> native, in a SANDBOXED subprocess.
+    #    Decoding compressed pixels runs a third-party C/C++ codec (libjpeg/OpenJPEG/CharLS/...)
+    #    on untrusted bytes — the deep RCE surface. We never run it in-process: a crash, OOM, or
+    #    hang in the worker is contained and the file is quarantined. Allocation/length/
+    #    decompression bombs were already rejected above, before any decode is attempted.
+    transcoded = False
+    if ts and ts not in _NATIVE_TS:
+        fd, native_tmp = tempfile.mkstemp(suffix=".native.tmp.dcm")
+        os.close(fd)
+        ok, reason = safe_transcode_to_native(filepath, native_tmp)
+        if not ok:
+            _safe_unlink(native_tmp)
+            return DisarmResult(None, error=f"not disarmable ({reason})", source_lossy=source_lossy)
+        try:
+            ds = pydicom.dcmread(native_tmp, force=True)  # native from here: no codec ever runs
+        except Exception as e:
+            _safe_unlink(native_tmp)
+            return DisarmResult(None, error=f"sandboxed decode produced unreadable output: {e}",
+                                source_lossy=source_lossy)
+        _safe_unlink(native_tmp)
+        transcoded = True
+        if source_lossy:
+            changes.append(f"transcoded {ts} -> Explicit VR LE in a sandboxed subprocess "
+                           "(LOSSY source: pixels preserved exactly as decoded, no NEW loss, but "
+                           "NOT bit-exact vs the original acquisition; codec attack surface removed)")
+        else:
+            changes.append(f"transcoded {ts} -> Explicit VR LE in a sandboxed subprocess "
+                           "(lossless source: pixels bit-exact; codec attack surface removed)")
+
+    # Decoded pixels for the equivalence check. ds is now native (either originally, or via the
+    # sandboxed transcode above), so this read invokes no third-party codec.
     orig_px = None
     if verify:
         try:
             orig_px = ds.pixel_array.copy()
         except Exception as e:
-            return DisarmResult(None, error=f"could not decode pixels: {e}")
-
-    changes = []
-
-    # 1) Transcode compressed/encapsulated pixel data -> native uncompressed.
-    transcoded = False
-    ts = str(getattr(getattr(ds, "file_meta", None), "TransferSyntaxUID", "") or "")
-    if ts and ts not in _NATIVE_TS:
-        try:
-            ds.decompress()  # decodes pixels, sets TransferSyntaxUID = Explicit VR LE
-        except Exception:
-            arr = ds.pixel_array
-            ds.PixelData = arr.tobytes()
-            ds.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
-            ds["PixelData"].VR = "OW" if int(getattr(ds, "BitsAllocated", 16)) > 8 else "OB"
-        transcoded = True
-        changes.append(f"transcoded {ts} -> Explicit VR LE (codec attack surface removed)")
+            return DisarmResult(None, error=f"could not read native pixels: {e}")
 
     # 2) Filter private tags against the vendor allowlist (keep known-safe, strip the rest).
     n_priv = 0
@@ -185,4 +242,4 @@ def disarm(filepath: str, out_path: Optional[str] = None,
         except Exception:
             image_preserved = False
 
-    return DisarmResult(out_path, changes, transcoded, n_priv, image_preserved)
+    return DisarmResult(out_path, changes, transcoded, n_priv, image_preserved, source_lossy)

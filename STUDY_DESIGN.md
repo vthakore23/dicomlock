@@ -3,9 +3,14 @@
 **Working title:** *Neutralizing the medical-imaging file attack surface: a fuzzing and
 CVE-reproduction evaluation of Content Disarm & Reconstruction (CDR) for DICOM.*
 
-**Status:** protocol / design. This is the publishable asset behind DicomLock — it converts the
-tool into evidence. It is written so a solo technical author can execute it on public data with no
-PHI, no IRB, and no partnerships that aren't already available.
+**Status:** protocol / design, with an **initial Aim-3 execution** landed. A runnable, hermetic
+harness (`_attack_test/aim3/`) builds a real pinned-vulnerable **OpenJPEG v2.3.0 + AddressSanitizer**
+target plus a coverage-guided **AFL++** setup, and runs the paired raw-vs-CDR-vs-POST experiment.
+First result: a fuzzer-found malformed JPEG2000 drives the pinned decoder to a fault; CDR neutralizes
+the malicious DICOM carrier (quarantine) and disarms a clean image bit-exact (`aim3/results/`). This
+is the publishable asset behind DicomLock — it converts the tool into evidence. It is written so a
+solo technical author can execute it on public data with no PHI, no IRB, and no partnerships that
+aren't already available.
 
 ---
 
@@ -180,3 +185,27 @@ first to establish the result and drive DicomLock credibility.
 - [ ] DicomLock commit hash recorded.
 - [ ] CPU budget, hardware, and rlimits reported.
 - [ ] Raw outcome logs + analysis scripts released.
+
+---
+
+## 10. Preliminary results (reproduced 2026-05-25, DicomLock v0.7.0)
+
+These establish false-positive discipline, detection, and CDR neutralization on a curated corpus
+plus one pinned-vulnerable target. The full fuzzing campaign (Aim 1 at scale, memory-corruption
+class, multiple pinned targets) remains future work; the crashes reproduced so far are
+DoS/allocation-class, not memory-corruption.
+
+| Result | Number | Harness |
+|--------|--------|---------|
+| False positives, 575 real clinical CTs | **0 / 575** (0 parse errors) | `validate_scale.py` |
+| False positives, mixed-compression corpus (103 files, 12 transfer syntaxes) | **0 on conformant files** (8/103 blocked, every one genuinely non-conformant: no Part-10 header, truncated, or missing image dimensions) | `fp_mixed_corpus.py` |
+| Detection on the tampered corpus | **20 / 20** flagged by the expected check; **0 FP** on the 15 paired clean files | `validate_phase1.py` |
+| Differentiation | pydicom, GDCM, and dcmtk `dcmdump` accept the weaponized files (or crash on the bomb without flagging it); DicomLock raises a verdict on every one | `compare_baseline.py` |
+| CDR, paired raw-vs-CDR | **4 / 4** DoS-bomb inputs neutralized (pre-identified and quarantined, never executed raw); 9 polyglot/payload/deflate files disarmed **bit-exact**; un-decodable files quarantined | `cdr_vs_parsers.py` |
+| Aim 3 vs a pinned-vulnerable codec | a fuzzer-found malformed JPEG 2000 OOM-kills **OpenJPEG 2.3.0 + ASan**; CDR neutralizes the DICOM carrier (sandboxed quarantine) and disarms a clean image **bit-exact** | `aim3/` (Docker) |
+| Re-identification-risk score | ranks clean = 0/MINIMAL, residual-PHI = 45/MODERATE, dirty = 100/HIGH | `test_reid_score.py` |
+
+The four mixed-compression false positives found while building this table (explicit/implicit
+VR-mismatch length-walk desync; 1-bit bit-packing; YBR_FULL_422 subsampling; legal trailing
+padding) were all fixed before the 0-on-conformant result above; detection held at 20/20 and the
+575-CT scale stayed at 0 FP after the fixes.

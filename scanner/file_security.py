@@ -31,6 +31,14 @@ _EXE_SIGS = {
 # Explicit-VR value representations that use 2 reserved bytes + a 4-byte length.
 # Everything else uses a 2-byte length. (DICOM PS3.5)
 _LONG_VR = {b"OB", b"OW", b"OF", b"OD", b"OL", b"OV", b"SQ", b"UC", b"UR", b"UT", b"UN"}
+# Every valid DICOM VR (PS3.5). In Explicit-VR mode the 2 bytes after a tag MUST be one of
+# these; if they are not, the file's actual encoding does not match its declared transfer
+# syntax (or the walk has desynced), so byte-level length validation can no longer be trusted.
+_VALID_VRS = {
+    b"AE", b"AS", b"AT", b"CS", b"DA", b"DS", b"DT", b"FL", b"FD", b"IS", b"LO", b"LT",
+    b"OB", b"OD", b"OF", b"OL", b"OV", b"OW", b"PN", b"SH", b"SL", b"SQ", b"SS", b"ST",
+    b"SV", b"TM", b"UC", b"UI", b"UL", b"UN", b"UR", b"US", b"UT", b"UV",
+}
 _UNDEFINED_LENGTH = 0xFFFFFFFF
 _DEFLATED_TS = "1.2.840.10008.1.2.1.99"  # Deflated Explicit VR LE: dataset body is zlib-compressed
 
@@ -161,6 +169,20 @@ def check_length_amplification(filepath: str) -> list[Finding]:
                 voff = off + 8
             else:
                 vr = data[off + 4: off + 6]
+                if vr not in _VALID_VRS:
+                    # Declared Explicit VR, but these bytes are not a valid VR: the file's actual
+                    # encoding does not match its transfer syntax (e.g. an implicitly-encoded data
+                    # set that declares a JPEG/Explicit TS) or the walk has desynced. Continuing
+                    # would misread value bytes as element headers and fabricate a "length bomb"
+                    # (an FP). Stop and report honestly; pydicom parses such files leniently and
+                    # --disarm re-emits a conformant file.
+                    return [Finding(
+                        "length_amplification", "info",
+                        "Structural length check stopped: element encoding does not match the "
+                        "declared Explicit VR transfer syntax",
+                        "The bytes where a VR is expected are not a valid DICOM VR, so byte-level "
+                        "length validation cannot continue without desyncing. The decoded-size "
+                        "guard (check_pixel_dimension_bomb) still applies after pydicom parses.")]
                 if vr in _LONG_VR:
                     length = struct.unpack_from(endian + "I", data, off + 8)[0]
                     voff = off + 12

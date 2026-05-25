@@ -1,0 +1,40 @@
+# Aim 1 + Aim 3 (the stronger result): COVERAGE-GUIDED fuzzing (AFL++) of a pinned-vulnerable
+# OpenJPEG to surface a real MEMORY-CORRUPTION crash, then DicomLock CDR neutralizes it.
+# Dumb mutation cannot reach OpenJPEG's deep decode bugs; AFL++ with coverage feedback can.
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates \
+        afl++ clang llvm libclang-rt-dev libasan8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# OpenJPEG v2.3.0 instrumented with AFL++ coverage + AddressSanitizer (the vulnerable TARGET).
+RUN git clone --depth 1 --branch v2.3.0 https://github.com/uclouvain/openjpeg.git /src/openjpeg
+WORKDIR /src/openjpeg/build
+# NOTE: export AFL_USE_ASAN so it is set for BOTH cmake AND make. afl-clang-fast reads it at
+# compile time (during make), so a `VAR=1 cmake .. && make` prefix would miss the actual build.
+RUN export AFL_USE_ASAN=1 && CC=afl-clang-fast \
+    cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_C_FLAGS="-g -O1 -fno-omit-frame-pointer -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion" \
+    && make -j"$(nproc)"
+
+# Large BENIGN seed corpus: OpenJPEG's own conformance test images (open data, BSD-licensed). Real
+# J2K/JP2 structure lets AFL reach the deep decode + box-parser paths where OpenJPEG's memory bugs
+# live; a handful of synthetic gradients plateaus around ~38% coverage and finds nothing. This is
+# benign test imagery used only as fuzzer INPUT (never executed), cloned at build time so the
+# campaign is reproducible.
+RUN git clone --depth 1 https://github.com/uclouvain/openjpeg-data.git /src/openjpeg-data \
+    && mkdir -p /seedcorpus \
+    && find /src/openjpeg-data -type f \( -iname '*.j2k' -o -iname '*.j2c' -o -iname '*.jp2' \) \
+        -exec sh -c 'cp "$1" "/seedcorpus/$(md5sum < "$1" | cut -c1-10)_$(basename "$1")" 2>/dev/null' _ {} \; \
+    && echo "benign seed-corpus files: $(ls /seedcorpus | wc -l)"
+
+# DicomLock CDR side: modern, patched OpenJPEG bundled in pylibjpeg-openjpeg.
+RUN pip install --no-cache-dir pydicom numpy pillow pylibjpeg pylibjpeg-openjpeg python-gdcm
+
+COPY scanner /dicomlock/scanner
+COPY run_aim3.py /dicomlock/run_aim3.py
+COPY afl_entry.sh /dicomlock/afl_entry.sh
+WORKDIR /dicomlock
+ENV PYTHONPATH=/dicomlock FUZZ_SECONDS=420
+ENTRYPOINT ["bash", "/dicomlock/afl_entry.sh"]

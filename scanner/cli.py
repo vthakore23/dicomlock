@@ -141,6 +141,28 @@ def print_report(report: dict):
     print()
 
 
+def print_reid_risk(report: dict):
+    """Print the composite re-identification-risk score (only present when --deid was used)."""
+    r = report.get("reid_risk")
+    if not r:
+        return
+    band = r.get("band", "?")
+    band_color = {
+        "MINIMAL": C.GREEN, "LOW": C.CYAN, "MODERATE": C.YELLOW,
+        "HIGH": C.BG_RED + C.WHITE, "ERROR": C.RED,
+    }.get(band, C.WHITE)
+    score = r.get("score")
+    score_str = f"{score}/100" if isinstance(score, int) else "n/a"
+    print(f"  {C.BOLD}RE-IDENTIFICATION RISK{C.RESET}  "
+          f"{band_color}{C.BOLD} {band} {C.RESET}  (score {score_str})")
+    for dim, v in (r.get("dimensions") or {}).items():
+        label = dim.replace("_", " ")
+        print(f"    {C.DIM}{label:26s}{C.RESET} {v.get('points', 0):>3} pts")
+    if r.get("note"):
+        print(f"  {C.DIM}{r['note']}{C.RESET}")
+    print()
+
+
 def print_action(action: dict):
     """Print the disarm / quarantine outcome."""
     if not action:
@@ -195,6 +217,7 @@ def main():
     for filepath in files:
         report = run_security_scan(str(filepath), run_deid=run_deid)
         print_report(report)
+        print_reid_risk(report)
         if do_disarm:
             action = disarm_or_quarantine(str(filepath)) if is_dangerous(report) else {"action": "clean"}
             report["action"] = action

@@ -71,9 +71,18 @@ bit-exact (decoded pixel array pre/post) on native/lossless transcodes.
 
 ## Residual risk (honest limitations)
 
-- **Lossy-compressed pixel data:** transcoding decodes once and stores uncompressed (no *new* loss),
-  but a file that is *only* available as un-decodable lossy/proprietary data is quarantined, not
-  recovered.
+- **Lossy-compressed pixel data (explicit policy).** Disarm classifies the source codec into three
+  buckets and labels the result (`DisarmResult.source_lossy`):
+  1. *Lossless / native* (Implicit/Explicit VR LE/BE, Deflate, RLE, JPEG-Lossless, JPEG-LS-Lossless,
+     JPEG2000-Lossless, HTJ2K-Lossless) → transcode is **bit-exact vs the original acquisition**.
+  2. *Lossy* (JPEG baseline/extended lossy, JPEG2000 `.91/.93`, JPEG-LS near-lossless, MPEG/H.264/
+     HEVC video) → decode once and store the pixels **exactly as decoded: no NEW loss**, but NOT
+     bit-exact vs the acquisition (that loss already happened in the source). The tool does not
+     re-lossy-compress, so it never adds generational loss.
+  3. *Undecodable by every installed backend* (e.g. 12-bit JPEG Extended with no supporting decoder)
+     → **quarantined**, not silently degraded.
+  Unknown/unlisted encapsulated syntaxes are treated as lossy (conservative: bit-exact is only
+  claimed when certain).
 - **In-the-wild evidence:** the threat is demonstrated via PoCs and CVEs, **not** documented as a
   weaponized DICOM *file* used in an attack. Urgency is anticipatory.
 - **Compressed-body length bombs:** a length bomb hidden *inside* a deflated stream can't be checked
@@ -95,5 +104,10 @@ DicomLock parses hostile input, so:
 - Allocation/length/decompression bombs are rejected **before** any pixel decode — the disarm step
   refuses them up front so a crafted file cannot DoS the tool itself.
 - Bomb checks are **header/byte-level only**; they never allocate or decode the declared buffer.
-- Recommended deployment: run ingest/parse under memory + CPU-time limits with **no network**, and
-  prefer subprocess/container isolation (see [ARCHITECTURE.md](ARCHITECTURE.md), "Sandboxing").
+- **The codec decode is isolated.** Disarm decodes compressed pixels (the one step that runs a
+  third-party C/C++ codec) in a **resource-limited child process** (`scanner/_sandbox.py`, CPU +
+  address-space rlimits and a wall-clock timeout). A codec segfault, OOM, or hang kills the worker
+  and the file is quarantined; it never takes down the scanner. This is the concrete defense for
+  the codec-RCE class: the tool still runs the distrusted codec, but not in its own address space.
+- Recommended deployment: additionally run the whole pipeline under container isolation with **no
+  network** (see [ARCHITECTURE.md](ARCHITECTURE.md), "Sandboxing").

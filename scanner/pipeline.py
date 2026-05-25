@@ -23,10 +23,10 @@ from scanner.file_security import (
 )
 from scanner.codec_cve import check_codec_cve_exposure
 from scanner.metadata import run_metadata_checks
-from scanner.deid_auditor import run_deid_checks
+from scanner.deid_auditor import run_deid_checks, score_reidentification_risk
 from scanner.disarm import disarm
 
-SCANNER_VERSION = "DicomLock v0.6.0"
+SCANNER_VERSION = "DicomLock v0.7.0"
 _DANGER = {"fail", "critical"}
 
 
@@ -55,7 +55,7 @@ def run_security_scan(filepath: str, run_deid: bool = False) -> dict:
             findings += run_deid_checks(ingested.dataset)
 
     finding_dicts = [f.to_dict() for f in findings]
-    return {
+    report = {
         "file": ingested.filepath,
         "filename": ingested.filename,
         "file_size": ingested.file_size,
@@ -65,6 +65,15 @@ def run_security_scan(filepath: str, run_deid: bool = False) -> dict:
         "findings": finding_dicts,
         "summary": summarize(finding_dicts),
     }
+
+    # Privacy pillar: a single composite re-identification-risk score (opt-in with --deid).
+    if run_deid and ingested.dataset is not None:
+        try:
+            report["reid_risk"] = score_reidentification_risk(ingested.dataset)
+        except Exception as e:
+            report["reid_risk"] = {"score": None, "band": "ERROR", "error": str(e)[:120]}
+
+    return report
 
 
 def is_dangerous(report: dict) -> bool:

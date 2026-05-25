@@ -25,6 +25,15 @@ venv/
 # (candid competitive notes, business strategy, founder/mentor + med-school context)
 PROGRESS_LOG.md
 SESSION_3_PLAN.md
+AUDIT.md
+DIRECTION.md
+NEXT_CHAT.md
+PLAN.md
+
+# Fuzzing run output + generated result artifacts (regenerated; some crash filenames
+# contain ':' which is not portable to Windows checkouts). The harness + seeds are tracked.
+_attack_test/aim3/results/
+_attack_test/*_results.txt
 
 # OS / editor
 .DS_Store

@@ -512,6 +512,185 @@ def check_facial_geometry(ds: pydicom.Dataset) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# Check 5: PHI in standard free-text fields (content-based, not just tag presence)
+# ---------------------------------------------------------------------------
+
+# Standard (non-private) descriptive fields that frequently leak identifiers in the clear even
+# after a tag-level de-identification pass that only empties the obvious Patient* tags.
+FREE_TEXT_PHI_TAGS = [
+    (0x0008, 0x1030, "StudyDescription"),
+    (0x0008, 0x103E, "SeriesDescription"),
+    (0x0008, 0x4000, "IdentifyingComments"),
+    (0x0010, 0x21B0, "AdditionalPatientHistory"),
+    (0x0010, 0x4000, "PatientComments"),
+    (0x0010, 0x2180, "Occupation"),
+    (0x0018, 0x1030, "ProtocolName"),
+    (0x0020, 0x4000, "ImageComments"),
+    (0x0032, 0x4000, "StudyComments"),
+    (0x0038, 0x4000, "VisitComments"),
+    (0x0040, 0x0254, "PerformedProcedureStepDescription"),
+]
+
+# The broad "Firstname Lastname" pattern is dropped for free text (mixed-case clinical phrasing
+# like "Chest Wall" trips it); it stays in the private-tag scan where context is more suspicious.
+_FREE_TEXT_PATTERNS = [(p, d) for p, d in PHI_PATTERNS if "Possible name" not in d]
+
+_SEV_RANK = {"pass": 0, "info": 1, "warn": 2, "fail": 3, "critical": 4}
+
+
+def check_free_text_phi(ds: pydicom.Dataset) -> list[Finding]:
+    """Scan standard free-text descriptive fields for embedded identifiers (MRN, SSN, dates,
+    emails, phones, addresses) left in the clear after tag-level de-identification."""
+    hits = []
+    for grp, el, name in FREE_TEXT_PHI_TAGS:
+        try:
+            elem = ds[(grp, el)]
+        except KeyError:
+            continue
+        text = _decode_element_text(elem)
+        if not text or len(text.strip()) < 3:
+            continue
+        matched = [d for p, d in _FREE_TEXT_PATTERNS if re.search(p, text)]
+        if matched:
+            preview = text[:80] + ("..." if len(text) > 80 else "")
+            hits.append((name, f"({grp:04X},{el:04X})", preview, matched))
+    if not hits:
+        return [Finding("free_text_phi", "pass",
+                        "No identifier patterns in free-text descriptive fields")]
+    detail = "; ".join(f"{n} {t} = '{v}' [{', '.join(m)}]" for n, t, v, m in hits[:8])
+    return [Finding("free_text_phi", "warn",
+                    f"{len(hits)} free-text field(s) contain identifier-like patterns",
+                    details=detail)]
+
+
+# ---------------------------------------------------------------------------
+# Optional OCR for burned-in pixel PHI (graceful fallback to the heuristic if unavailable)
+# ---------------------------------------------------------------------------
+
+def _ocr_available() -> bool:
+    try:
+        import shutil
+        import pytesseract  # noqa: F401
+        return shutil.which("tesseract") is not None
+    except Exception:
+        return False
+
+
+def _ocr_edge_phi(ds: pydicom.Dataset):
+    """If OCR is available, read text from the image's top/bottom edge bands (where overlays live)
+    and test it for identifier patterns. Edge-only keeps it fast and avoids OCR'ing the diagnostic
+    image itself. Returns (ocr_available, text_found, [phi_descriptions])."""
+    if not _ocr_available():
+        return (False, False, [])
+    try:
+        import pytesseract
+        from PIL import Image
+        px = ds.pixel_array
+        if px.ndim > 2 and px.shape[0] > 1:
+            px = px[0]
+        if px.ndim == 3 and px.shape[-1] in (3, 4):
+            px = np.mean(px[..., :3], axis=-1)
+        px = px.astype(np.float64)
+        h, w = px.shape
+        if h < 64 or w < 64:
+            return (True, False, [])
+        pmin, pmax = px.min(), px.max()
+        if pmax - pmin < 1e-6:
+            return (True, False, [])
+        norm = ((px - pmin) / (pmax - pmin) * 255).astype(np.uint8)
+        bands = [norm[: int(h * 0.12)], norm[int(h * 0.88):]]
+        text_found, phi = False, []
+        for band in bands:
+            for img in (band, 255 - band):  # both text polarities
+                txt = pytesseract.image_to_string(Image.fromarray(img))
+                if txt and len(txt.strip()) >= 3:
+                    text_found = True
+                    for p, d in PHI_PATTERNS:
+                        if re.search(p, txt) and d not in phi:
+                            phi.append(d)
+        return (True, text_found, phi)
+    except Exception:
+        return (True, False, [])
+
+
+# ---------------------------------------------------------------------------
+# Composite re-identification-risk score (the first-class "privacy pillar" output)
+# ---------------------------------------------------------------------------
+
+def _tag_has_data(ds, tag) -> bool:
+    try:
+        v = ds[tag].value
+    except KeyError:
+        return False
+    if v is None:
+        return False
+    if isinstance(v, (str, bytes)) and len(v) == 0:
+        return False
+    if isinstance(v, pydicom.sequence.Sequence) and len(v) == 0:
+        return False
+    return len(str(v).strip()) > 0
+
+
+def score_reidentification_risk(ds: pydicom.Dataset, use_ocr: bool = True) -> dict:
+    """Composite, ORDINAL re-identification-risk score (0-100; NOT a calibrated probability).
+
+    Aggregates four independent leakage channels so one number + band can gate a sharing pipeline:
+      - residual structured identifiers (PS3.15 Basic Profile tags still populated),
+      - identifiers in free text and private tags,
+      - burned-in pixel text (header flag + edge heuristic, strengthened by OCR when available),
+      - facial-geometry reconstructability for head CT/MR (the Mayo-2025 concern).
+
+    Heuristic by design: it ranks/triages files, it does NOT certify de-identification. MINIMAL
+    means none of the modeled channels fired (absence of evidence, not proof of safety).
+    """
+    crit = [t for t in CRITICAL_PHI_TAGS if _tag_has_data(ds, t)]
+    other = [t for t in BASIC_PROFILE_TAGS
+             if t not in CRITICAL_PHI_TAGS and _tag_has_data(ds, t)]
+    struct = min(45, 18 * len(crit) + 3 * len(other))
+
+    ft = any(f.severity == "warn" for f in check_free_text_phi(ds))
+    pv = any(f.severity == "warn" for f in check_private_tags_phi(ds))
+    text = min(22, (14 if ft else 0) + (10 if pv else 0))
+
+    burned, bi_reason = 0, []
+    if str(getattr(ds, "BurnedInAnnotation", "")).upper() == "YES":
+        burned = max(burned, 18); bi_reason.append("BurnedInAnnotation=YES")
+    if any(f.severity in ("warn", "fail") for f in check_burned_in_phi(ds)):
+        burned = max(burned, 18); bi_reason.append("edge-text heuristic")
+    ocr_av, ocr_text, ocr_phi = (_ocr_edge_phi(ds) if use_ocr else (False, False, []))
+    if ocr_text:
+        burned = max(burned, 20); bi_reason.append("OCR found edge text")
+    if ocr_phi:
+        burned = 25; bi_reason.append("OCR matched: " + ", ".join(ocr_phi))
+    burned = min(25, burned)
+
+    fg = check_facial_geometry(ds)
+    fsev = max((f.severity for f in fg), key=lambda s: _SEV_RANK.get(s, 0)) if fg else "pass"
+    face = {"fail": 30, "warn": 18, "info": 6}.get(fsev, 0)
+
+    total = min(100, struct + text + burned + face)
+    band = ("HIGH" if total >= 60 else "MODERATE" if total >= 25
+            else "LOW" if total >= 1 else "MINIMAL")
+    return {
+        "score": total,
+        "band": band,
+        "dimensions": {
+            "structured_identifiers": {
+                "points": struct,
+                "critical_tags": [f"{g:04X},{e:04X}" for g, e in crit],
+                "other_profile_tags": len(other),
+            },
+            "text_identifiers": {"points": text, "free_text_phi": ft, "private_tag_phi": pv},
+            "burned_in_pixels": {"points": burned, "reasons": bi_reason, "ocr_available": ocr_av},
+            "facial_geometry": {"points": face, "severity": fsev,
+                                "detail": "; ".join(f.message for f in fg)},
+        },
+        "note": "Ordinal triage score, not a probability. HIGH = multiple identifier channels "
+                "remain; MINIMAL = none of the modeled channels fired (not a safety guarantee).",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Runner: execute all de-identification checks
 # ---------------------------------------------------------------------------
 
@@ -521,6 +700,7 @@ def run_deid_checks(ds: pydicom.Dataset) -> list[Finding]:
     for check_fn in (
         check_deid_profile_completeness,
         check_private_tags_phi,
+        check_free_text_phi,
         check_burned_in_phi,
         check_facial_geometry,
     ):

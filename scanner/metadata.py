@@ -95,6 +95,28 @@ _NATIVE_TS = {
 }
 
 
+def _expected_pixel_bytes(rows, cols, bits, samples, frames, photometric):
+    """Declared uncompressed pixel-data size in bytes.
+
+    Accounts for two encodings where the stored size is legitimately NOT
+    rows*cols*samples*bytes_per_pixel:
+      - 1-bit data is bit-packed (8 pixels per byte), e.g. overlays / 1-bit images.
+      - YBR chroma-subsampled formats store the color planes at reduced resolution:
+        *_422 keeps Cb/Cr for every 2nd pixel (2 bytes/pixel for 8-bit, not 3);
+        *_420 keeps Cb/Cr for every 4th pixel (1.5 bytes/pixel).
+    """
+    px = rows * cols * frames
+    if bits == 1:
+        return (px * samples + 7) // 8
+    bpp = (bits + 7) // 8
+    pi = (str(photometric) if photometric is not None else "").upper()
+    if pi in ("YBR_FULL_422", "YBR_PARTIAL_422"):
+        return px * bpp * 2
+    if pi == "YBR_PARTIAL_420":
+        return px * bpp * 3 // 2
+    return px * bpp * samples
+
+
 def check_pixel_dimensions(ds: pydicom.Dataset) -> list[Finding]:
     """
     Verify that declared pixel dimensions are consistent with the stored pixel data.
@@ -138,36 +160,58 @@ def check_pixel_dimensions(ds: pydicom.Dataset) -> list[Finding]:
         ))
         return findings
 
-    bytes_per_pixel = (bits_allocated + 7) // 8
-    expected_size = rows * columns * bytes_per_pixel * samples_per_pixel * number_of_frames
+    photometric = getattr(ds, "PhotometricInterpretation", None)
+    expected_size = _expected_pixel_bytes(
+        rows, columns, bits_allocated, samples_per_pixel, number_of_frames, photometric)
     raw_size = len(ds.PixelData)
 
     ts = getattr(getattr(ds, "file_meta", None), "TransferSyntaxUID", None)
     is_native = (str(ts) if ts is not None else "") in _NATIVE_TS
 
-    if is_native:
-        # Uncompressed: raw bytes should equal declared size (allow trailing odd-length padding).
-        if abs(raw_size - expected_size) <= 2:
-            findings.append(Finding(
-                "pixel_dimensions", "pass",
-                f"Pixel dimensions consistent: {rows}x{columns}, {bits_allocated}-bit, "
-                f"{samples_per_pixel} channel(s), {number_of_frames} frame(s)"
-            ))
-        else:
-            findings.append(Finding(
-                "pixel_dimensions", "fail",
-                f"Uncompressed pixel data is {raw_size:,} bytes but the header declares "
-                f"{expected_size:,} — dimensions and data disagree",
-                "For an uncompressed transfer syntax these must match. A mismatch indicates "
-                "tampering, truncation, or a crafted header."
-            ))
-    else:
+    if not is_native:
         findings.append(Finding(
             "pixel_dimensions", "info",
             f"Compressed pixel data ({raw_size:,} stored bytes, declares {expected_size:,} "
             "uncompressed)",
             "Decoded-shape verification would require running the untrusted codec, which DicomLock "
             "refuses to do during a scan. Use --disarm to transcode and verify in a controlled step."
+        ))
+        return findings
+
+    # Uncompressed: the image must be fully present. FEWER bytes than declared is the dangerous
+    # case (truncation, or a header crafted to make a viewer read past its buffer). MORE bytes is
+    # legal trailing padding (even-length / vendor padding), not an over-read.
+    if raw_size + 2 < expected_size:
+        findings.append(Finding(
+            "pixel_dimensions", "fail",
+            f"Uncompressed pixel data is {raw_size:,} bytes but the header declares "
+            f"{expected_size:,} — fewer bytes than the image requires",
+            "For an uncompressed transfer syntax the stored bytes must cover the declared image. "
+            "A shortfall indicates truncation, tampering, or a crafted header that makes a viewer "
+            "read past the pixel buffer."
+        ))
+    elif raw_size > expected_size + 2:
+        excess = raw_size - expected_size
+        if excess <= max(expected_size, 4096):
+            findings.append(Finding(
+                "pixel_dimensions", "pass",
+                f"Pixel dimensions consistent: {rows}x{columns}, {bits_allocated}-bit, "
+                f"{samples_per_pixel} channel(s), {number_of_frames} frame(s) "
+                f"(+{excess:,} bytes trailing padding)"
+            ))
+        else:
+            findings.append(Finding(
+                "pixel_dimensions", "warn",
+                f"Pixel data carries {excess:,} bytes beyond the declared {expected_size:,}-byte "
+                "image",
+                "A small trailer is normal padding, but a large unexplained trailer after the pixel "
+                "data can conceal appended content. Review or strip via --disarm."
+            ))
+    else:
+        findings.append(Finding(
+            "pixel_dimensions", "pass",
+            f"Pixel dimensions consistent: {rows}x{columns}, {bits_allocated}-bit, "
+            f"{samples_per_pixel} channel(s), {number_of_frames} frame(s)"
         ))
 
     return findings

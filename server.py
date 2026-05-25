@@ -29,7 +29,7 @@ from scanner.pipeline import (
     SCANNER_VERSION,
 )
 
-app = FastAPI(title="DicomLock", description="DICOM Security Scanner API", version="0.6.0")
+app = FastAPI(title="DicomLock", description="DICOM Security Scanner API", version="0.7.0")
 
 # CORS — allow the local frontend
 app.add_middleware(
