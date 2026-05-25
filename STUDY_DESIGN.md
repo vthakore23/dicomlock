@@ -195,6 +195,12 @@ plus one pinned-vulnerable target. The full fuzzing campaign (Aim 1 at scale, me
 class, multiple pinned targets) remains future work; the crashes reproduced so far are
 DoS/allocation-class, not memory-corruption.
 
+The benchmark engine reproduces the per-class detection, neutralization, fidelity, and
+false-positive numbers in one command: `python -m bench` (see `bench/README.md`). Latest run:
+detection 20/20, false positives 0/590 (15 curated samples + 575 real TCIA CTs, scan-only),
+neutralization 20/20, fidelity 23/23 bit-exact, and 9 of the 14 blocked files are silently accepted
+by all three reference toolkits (pydicom, GDCM, dcmtk).
+
 | Result | Number | Harness |
 |--------|--------|---------|
 | False positives, 575 real clinical CTs | **0 / 575** (0 parse errors) | `validate_scale.py` |

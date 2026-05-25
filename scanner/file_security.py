@@ -17,14 +17,27 @@ from collections import Counter
 from scanner.findings import Finding
 
 
-# Executable / archive magic signatures (used for preamble + private-tag carving)
+# Executable / archive magic signatures (used for preamble + private-tag carving).
+# Longer/more-specific signatures first so _match_signature reports the most precise hit.
 _EXE_SIGS = {
-    b"MZ": "Windows PE executable",
     b"\x7fELF": "Linux ELF executable",
-    b"\xca\xfe\xba\xbe": "macOS Mach-O binary",
+    b"\xca\xfe\xba\xbe": "macOS Mach-O / Java class",
+    b"\xcf\xfa\xed\xfe": "macOS Mach-O 64-bit",
+    b"\xce\xfa\xed\xfe": "macOS Mach-O 32-bit",
     b"PK\x03\x04": "ZIP/JAR archive",
-    b"\x1f\x8b": "Gzip data",
+    b"Rar!\x1a\x07": "RAR archive",
+    b"7z\xbc\xaf\x27\x1c": "7-Zip archive",
+    b"\xfd7zXZ\x00": "XZ archive",
+    b"BZh": "bzip2 archive",
+    b"\x04\x22\x4d\x18": "LZ4 frame",
+    b"\x00asm": "WebAssembly module",
+    b"dex\n": "Android DEX bytecode",
+    b"\x1bLua": "Lua bytecode",
+    b"!<arch>": "ar/.deb archive",
+    b"\xed\xab\xee\xdb": "RPM package",
     b"%PDF": "PDF document",
+    b"\x1f\x8b": "Gzip data",
+    b"MZ": "Windows PE executable",
     b"#!": "shell script",
 }
 
