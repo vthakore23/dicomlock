@@ -49,10 +49,12 @@ if is_dangerous(report):
 Web UI and API:
 
 ```bash
-python server.py    # http://localhost:8899
+pip install "dicomlock[server]"
+dicomlock-server                                              # http://localhost:8899
+DICOMLOCK_HOST=127.0.0.1 DICOMLOCK_PORT=9000 dicomlock-server # bind elsewhere
 ```
 
-Uploads are scanned in a temp directory and deleted right after, so PHI is never persisted.
+The server and web UI ship in the wheel under the `[server]` extra. The console-script entry point `dicomlock-server` and the legacy `python server.py` from a git checkout both launch the same FastAPI app (`scanner.server:app`). Uploads are scanned in a temp directory and deleted right after, so PHI is never persisted.
 
 Docker:
 

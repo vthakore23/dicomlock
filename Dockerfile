@@ -23,20 +23,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /opt/dicomlock
 
-# Install the dicomlock package with the [server] extra. This pulls only what
-# scanning, disarm, and the API need: pydicom + numpy + python-gdcm + pylibjpeg
-# backends + fastapi + uvicorn + python-multipart. The legacy pixel-forensics
-# modules (which would pull scipy, scikit-image, PyWavelets) are not in the
-# default scan path and are deliberately not installed here.
+# Install the dicomlock package with the [server] extra. The wheel ships
+# scanner/, scanner/server.py, and scanner/web/ (the static UI), and registers
+# two console scripts: `dicomlock` (CLI) and `dicomlock-server` (API + UI). The
+# legacy pixel-forensics modules (which would pull scipy, scikit-image,
+# PyWavelets) are not in the default scan path and are deliberately not
+# installed here.
 COPY pyproject.toml README.md LICENSE ./
 COPY scanner/ ./scanner/
 RUN pip install --no-cache-dir ".[server]"
 
-# Layer 3: the server, CLI script, web UI, and a handful of bundled samples so
-# the image is self-demoing. The full samples/ tree and data/ tree are
-# excluded via .dockerignore to keep the image small.
-COPY server.py scan.py ./
-COPY web/ ./web/
+# A handful of bundled samples so `docker run --entrypoint dicomlock dicomlock
+# samples/ct_sample.dcm` works as a self-demo from WORKDIR. The full samples/
+# tree and data/ tree are excluded via .dockerignore.
 COPY samples/ct_sample.dcm samples/mr_sample.dcm samples/JPEG2000.dcm ./samples/
 
 # Run as a non-root user. The server only reads uploads in a per-request temp
@@ -49,6 +48,7 @@ USER dicomlock
 
 EXPOSE 8899
 
-# Default command: launch the API and web UI. Override --entrypoint to use the
-# CLI instead, e.g. docker run --entrypoint dicomlock dicomlock samples/.
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8899"]
+# Default command: the API and web UI via the wheel's console-script entry
+# point. Override --entrypoint dicomlock to use the CLI instead. Host and port
+# can be overridden via DICOMLOCK_HOST and DICOMLOCK_PORT environment variables.
+CMD ["dicomlock-server"]

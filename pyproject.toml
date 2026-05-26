@@ -36,7 +36,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Web UI + REST API (python server.py)
+# Web UI + REST API, installs the `dicomlock-server` console script. The static
+# web UI ships as scanner/web/ inside the wheel.
 server = ["fastapi>=0.110.0", "uvicorn>=0.29.0", "python-multipart>=0.0.9"]
 # Parked/experimental modules (--deid PHI audit, legacy pixel forensics)
 full = ["scipy>=1.11.0", "scikit-image>=0.21.0", "Pillow>=10.0.0", "PyWavelets>=1.4.0"]
@@ -49,9 +50,10 @@ Issues = "https://github.com/vthakore23/dicomlock/issues"
 
 [project.scripts]
 dicomlock = "scanner.cli:main"
+dicomlock-server = "scanner.server:main"
 
 [tool.setuptools]
 packages = ["scanner"]
 
 [tool.setuptools.package-data]
-scanner = ["data/*.json"]
+scanner = ["data/*.json", "web/*"]
