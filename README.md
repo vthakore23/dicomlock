@@ -29,10 +29,12 @@ Python 3.10 or newer.
 
 ```bash
 dicomlock file.dcm                 # scan one file
-dicomlock folder/                  # scan every .dcm in a folder
+dicomlock folder/                  # scan every .dcm in a folder, print an aggregate summary
 dicomlock folder/ --disarm         # scan, then disarm or quarantine each file
 dicomlock file.dcm --deid          # add the PHI / de-identification audit
 ```
+
+Directory scans print an aggregate summary at the end: files scanned, elapsed time and throughput, verdict distribution (CLEAN / CAUTION / FAIL / CRITICAL), disarm actions if `--disarm` was set, finding categories that fired, and the paths of every file flagged dangerous so you can drill in.
 
 As a library:
 

@@ -11,6 +11,7 @@ Usage:
 import sys
 import os
 import json
+import time
 from pathlib import Path
 
 from scanner.pipeline import (
@@ -206,6 +207,111 @@ def print_reid_risk(report: dict):
     print()
 
 
+def print_summary(reports: list, target_str: str, elapsed: float, do_disarm: bool):
+    """Aggregate summary across a directory scan.
+
+    Prints a verdict distribution, a finding-category prevalence over files that
+    raised at least one warn/fail/critical, the disarm-action distribution if
+    --disarm was set, and the path of every file that ended up FAIL or CRITICAL
+    (so a researcher can find what to investigate). Skipped on single-file
+    scans because the per-file report is already the summary there.
+    """
+    n = len(reports)
+    if n <= 1:
+        return
+
+    # Verdict distribution across all files.
+    verdict_counts: dict = {}
+    for r in reports:
+        v = r.get("summary", {}).get("overall", "UNKNOWN")
+        verdict_counts[v] = verdict_counts.get(v, 0) + 1
+
+    # For each finding category, count files that raised at least one warn/fail/critical
+    # in that category (files-with, not raw findings-count, which is more useful).
+    danger = {"warn", "fail", "critical"}
+    cat_counts: dict = {}
+    for r in reports:
+        seen = set()
+        for f in r.get("findings", []):
+            if f.get("severity") in danger:
+                c = f.get("check", "unknown")
+                if c not in seen:
+                    cat_counts[c] = cat_counts.get(c, 0) + 1
+                    seen.add(c)
+
+    # Disarm action distribution.
+    action_counts: dict = {}
+    if do_disarm:
+        for r in reports:
+            a = (r.get("action") or {}).get("action", "scanned")
+            action_counts[a] = action_counts.get(a, 0) + 1
+
+    # Header block.
+    print()
+    print(f"  {C.BOLD}Scan complete.{C.RESET}")
+    print(f"    {C.DIM}files scanned    {C.RESET} {n}")
+    print(f"    {C.DIM}target           {C.RESET} {target_str}")
+    print(f"    {C.DIM}elapsed          {C.RESET} {elapsed:.2f} s")
+    if elapsed > 0:
+        print(f"    {C.DIM}throughput       {C.RESET} {n / elapsed:.1f} files/sec")
+
+    # Verdict block.
+    print(f"\n  {C.BOLD}Verdicts{C.RESET}")
+    for v in ("CLEAN", "CAUTION", "SUSPICIOUS", "FAIL", "CRITICAL"):
+        c = verdict_counts.get(v, 0)
+        if c == 0:
+            continue
+        color = SCORE_DISPLAY.get(v, (C.WHITE, v))[0]
+        pct = 100 * c / n
+        print(f"    {color} {v:<10} {C.RESET} {c:>6}  ({pct:5.1f}%)")
+    # Catch any unknown verdicts we did not whitelist above.
+    for v, c in verdict_counts.items():
+        if v in ("CLEAN", "CAUTION", "SUSPICIOUS", "FAIL", "CRITICAL"):
+            continue
+        pct = 100 * c / n
+        print(f"    {C.DIM} {v:<10} {C.RESET} {c:>6}  ({pct:5.1f}%)")
+
+    # Disarm action block.
+    if do_disarm and action_counts:
+        print(f"\n  {C.BOLD}Disarm actions{C.RESET}")
+        color_for = {"clean": C.GREEN, "disarmed": C.GREEN, "quarantined": C.RED}
+        for a in ("clean", "disarmed", "quarantined"):
+            c = action_counts.get(a, 0)
+            if c == 0:
+                continue
+            color = color_for.get(a, C.WHITE)
+            pct = 100 * c / n
+            print(f"    {color}{a:<14}{C.RESET} {c:>6}  ({pct:5.1f}%)")
+        for a, c in action_counts.items():
+            if a in ("clean", "disarmed", "quarantined"):
+                continue
+            pct = 100 * c / n
+            print(f"    {C.DIM}{a:<14}{C.RESET} {c:>6}  ({pct:5.1f}%)")
+
+    # Finding categories (files-with, not raw count).
+    if cat_counts:
+        print(f"\n  {C.BOLD}Finding categories (files with at least one warn/fail/critical){C.RESET}")
+        for cat, c in sorted(cat_counts.items(), key=lambda kv: -kv[1])[:10]:
+            pct = 100 * c / n
+            print(f"    {cat:<28} {c:>6}  ({pct:5.1f}%)")
+
+    # Investigate-these block: every file with a blocking verdict, with its path.
+    dangerous = [
+        r for r in reports
+        if r.get("summary", {}).get("overall") in ("FAIL", "CRITICAL")
+    ]
+    if dangerous:
+        show_n = min(20, len(dangerous))
+        print(f"\n  {C.BOLD}Files flagged dangerous (showing {show_n} of {len(dangerous)}){C.RESET}")
+        for r in dangerous[:show_n]:
+            v = r.get("summary", {}).get("overall", "?")
+            color = SCORE_DISPLAY.get(v, (C.WHITE, v))[0]
+            path = r.get("file") or r.get("filename") or "?"
+            print(f"    {color} {v:<8} {C.RESET} {path}")
+
+    print()
+
+
 def print_action(action: dict):
     """Print the disarm / quarantine outcome."""
     if not action:
@@ -255,8 +361,9 @@ def main():
         print(f"  {C.RED}File not found: {target}{C.RESET}")
         sys.exit(1)
 
-    # Scan (and optionally disarm) each file
+    # Scan (and optionally disarm) each file. Track wall time for the summary.
     reports = []
+    t_start = time.perf_counter()
     for filepath in files:
         report = run_security_scan(str(filepath), run_deid=run_deid)
         print_report(report)
@@ -266,6 +373,11 @@ def main():
             report["action"] = action
             print_action(action)
         reports.append(report)
+    elapsed = time.perf_counter() - t_start
+
+    # Aggregate summary on directory scans (skipped for single-file scans
+    # because the per-file report is already the summary there).
+    print_summary(reports, str(target), elapsed, do_disarm)
 
     # Save JSON reports
     if len(reports) == 1:
