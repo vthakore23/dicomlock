@@ -54,6 +54,17 @@ python server.py    # http://localhost:8899
 
 Uploads are scanned in a temp directory and deleted right after, so PHI is never persisted.
 
+Docker:
+
+```bash
+docker build -t dicomlock .
+docker run --rm -p 8899:8899 dicomlock                             # API + web UI at http://localhost:8899
+docker run --rm -v "$PWD/data:/data" --entrypoint dicomlock \
+    dicomlock /data --disarm                                       # CLI on a mounted host directory
+```
+
+The image is about 425 MiB, runs as a non-root user, and exposes only port 8899. Default command is the API; override `--entrypoint dicomlock` to use the CLI on a mounted host directory.
+
 ## How it works
 
 1. **Scan.** Deterministic, rule-based checks, no ML: preamble and polyglot signatures, length amplification, sequence-nesting depth, pixel-dimension and decompression bombs, private-tag payloads, codec-CVE exposure, and metadata integrity.

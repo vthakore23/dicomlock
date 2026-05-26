@@ -1,0 +1,64 @@
+# Keep the Docker build context tight: ship the package, the server, the web UI,
+# a handful of bundled samples, and nothing else. Patient data, internal docs,
+# build artifacts, and the bench harness all stay out.
+
+# VCS and editor noise
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Python build caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+build/
+dist/
+
+# Local virtualenvs
+.env
+.venv
+venv/
+
+# Patient data and trained models (never ship)
+data/
+models/
+fakes/
+
+# Internal continuity docs (gitignored too, but keep them out of the image even
+# if a local copy exists)
+PROGRESS_LOG.md
+AUDIT.md
+DIRECTION.md
+PLAN.md
+NEXT_CHAT.md
+SESSION_3_PLAN.md
+
+# Bench harness and its artifacts. The container ships the scanner, not the
+# benchmark engine; the benchmark engine imports scanner from a separate
+# development tree.
+bench/
+_attack_test/
+
+# The marketing site, the legacy classifier work, and downloaders are not part
+# of the runtime image.
+website/
+generate_fakes.py
+train_classifier.py
+validate.py
+validate_honest.py
+download_tcia.py
+make_tampered_corpus.py
+tests/
+
+# Reports and adversarial corpora that may exist locally
+*_report.json
+samples/generated/
+samples/tampered/
