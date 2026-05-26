@@ -27,7 +27,9 @@ tampered files, produces 0 false positives across 605 benign files (575 real cli
 curated) and across 370 further real clinical files in three additional body regions and modalities
 (100 abdomen CT, 120 brain MR, 150 chest radiographs), neutralizes 80 of 80 dangerous inputs,
 and rebuilds every native and lossless file bit-exact (623 in the fidelity harness plus the 370
-additional files) across 13 transfer syntaxes. Against the three reference toolkits (pydicom, GDCM, dcmtk),
+additional files) across 13 transfer syntaxes. Single-threaded on commodity hardware, the scanner
+runs at 254 files per second across the 945-file corpus (peak 265 MiB), and the CDR rebuild runs at
+63 to 174 files per second depending on whether the codec sandbox is invoked. Against the three reference toolkits (pydicom, GDCM, dcmtk),
 DicomLock flags 51 files that every toolkit accepts as valid, and no file it passes as clean is
 rejected by a toolkit (McNemar chi-square 49.0, p < 1e-6). The adversarial round found and fixed a
 real defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
@@ -230,6 +232,16 @@ had their pixels preserved exactly as decoded. The 370 additional brain MR, ches
 abdomen CT files were each rebuilt bit-exact as well, including the JPEG Lossless and JPEG 2000
 Lossless codec paths the chest CT corpus does not contain. There were 0 fidelity breaks across every
 modality and body region tested.
+
+**Performance.** Single-threaded on commodity laptop hardware (Python 3.12, macOS arm64), the
+scanner processes 945 real clinical files at 254 files per second and 456 MiB per second
+(per-file median 2 to 10 milliseconds depending on file size, p95 4 to 21 milliseconds), with a
+peak resident memory of 265 MiB. The CDR rebuild adds the cost of the sandboxed codec subprocess
+on encapsulated transfer syntaxes: on a native chest CT corpus the disarm path runs at 174 files
+per second, and on a mixed-codec brain MR corpus (a small fraction JPEG Lossless and JPEG 2000
+Lossless) it runs at 63 files per second. A typical 10,000-image PACS day clears scanning in under
+a minute on one core; the workload is embarrassingly parallel, so a real deployment scales
+linearly. Reproduced with `python -m bench.perf --include-disarm`.
 
 **Differentiation.** On the 63 tampered files the toolkits actually executed (excluding pre-identified
 bombs, which are never run raw), DicomLock flagged 51 files that every toolkit (pydicom, GDCM, dcmtk)

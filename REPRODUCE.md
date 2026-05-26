@@ -40,6 +40,7 @@ first run.
 | CDR bit-exact fidelity at scale (623/623 native and lossless across 13 transfer syntaxes) | `python -m bench.fidelity` |
 | Diverse-modality false positives and fidelity (0 FP, 370/370 bit-exact on MR, XR, and abdomen CT) | `python -m bench.diverse_check` |
 | Mixed-compression false positives on conformant files (0 FP across 103 files / 12 transfer syntaxes; 8 blocked are non-conformant) | `python _attack_test/fp_mixed_corpus.py` |
+| Single-thread throughput and peak memory (scan ~254 files/sec, disarm 63 to 174 files/sec, peak 265 MiB) | `python -m bench.perf --include-disarm` |
 | Residual re-identification risk across public "de-identified" datasets | `python -m bench.reid_audit` |
 | Re-identification score vs a standard tag anonymizer (dicognito) | `python -m bench.reid_vs_anonymizer` |
 | The adversarial corpus that tries to break the tool (inert, labeled) | `python -m bench.generate` |
