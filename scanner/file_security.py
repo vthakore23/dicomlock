@@ -129,7 +129,7 @@ def check_preamble(filepath: str) -> list[Finding]:
     if magic != b"DICM":
         findings.append(Finding(
             "file_preamble", "critical",
-            "Missing DICM magic bytes — file may not be valid DICOM",
+            "Missing DICM magic bytes (file may not be valid DICOM)",
             f"Found bytes: {magic!r}"))
         return findings
 
@@ -141,7 +141,7 @@ def check_preamble(filepath: str) -> list[Finding]:
     if detected:
         findings.append(Finding(
             "file_preamble", "critical",
-            f"POLYGLOT FILE DETECTED — preamble contains {detected} signature",
+            f"POLYGLOT FILE DETECTED. Preamble contains {detected} signature",
             "This file is simultaneously a valid DICOM file AND a valid "
             f"{detected} (CVE-2019-11687 / ELFDICOM). It can execute if opened by a non-DICOM "
             "handler. CDR neutralizes this by zeroing the preamble."))
@@ -151,7 +151,7 @@ def check_preamble(filepath: str) -> list[Finding]:
         sev = "warn" if ent > 4.0 else "info"
         findings.append(Finding(
             "file_preamble", sev,
-            f"Non-standard preamble — {nonzero}/128 bytes non-zero, entropy {ent:.1f}/8",
+            f"Non-standard preamble ({nonzero}/128 bytes non-zero, entropy {ent:.1f}/8)",
             "A standard preamble is all zeros. High-entropy content can hide an obfuscated "
             "payload even without a known signature. CDR zeroes the preamble regardless."))
     return findings
@@ -223,7 +223,7 @@ def check_length_amplification(filepath: str) -> list[Finding]:
             "length_amplification", "critical",
             f"File Meta element at byte {boff} declares {length:,} bytes but only "
             f"{remaining:,} remain",
-            f"Declared length is {ratio:,.0f}x the file size — and it sits in the File Meta "
+            f"Declared length is {ratio:,.0f}x the file size, and it sits in the File Meta "
             "group (0002), which every DICOM parser reads first. A naive parser allocating this "
             "would exhaust memory before it even reaches the image. DicomLock rejects it before "
             "any allocation occurs.")]
@@ -236,7 +236,7 @@ def check_length_amplification(filepath: str) -> list[Finding]:
         # pydicom inflates and parses.
         return [Finding(
             "length_amplification", "info",
-            "Dataset body is zlib-deflated — byte-level length check not applicable",
+            "Dataset body is zlib-deflated, byte-level length check not applicable",
             "Deflated Explicit VR LE compresses the whole data set; element lengths can only be "
             "checked after inflating through zlib (flagged separately as codec exposure). "
             "Disarm transcodes the file off the deflate path.")]
@@ -283,7 +283,7 @@ def check_length_amplification(filepath: str) -> list[Finding]:
             return [Finding(
                 "length_amplification", "critical",
                 f"Element at byte {off} declares {length:,} bytes but only {remaining:,} remain",
-                f"Declared length is {ratio:,.0f}x the file size — a naive parser allocating this "
+                f"Declared length is {ratio:,.0f}x the file size. A naive parser allocating this "
                 "would exhaust memory and crash (GDCM CVE class). DicomLock rejects it before any "
                 "allocation occurs.")]
         off = voff + length
@@ -312,7 +312,7 @@ def check_sequence_depth(ds, limit: int = 10) -> list[Finding]:
             "sequence_depth", "fail",
             f"Sequence nesting depth {d} exceeds the safe limit ({limit})",
             "Deeply nested sequences can exhaust memory or overflow the parser stack. "
-            "Legitimate files rarely exceed 3–5 levels.")]
+            "Legitimate files rarely exceed 3 to 5 levels.")]
     return [Finding("sequence_depth", "pass", f"Sequence nesting depth {d} within limits")]
 
 
@@ -358,7 +358,7 @@ def check_pixel_dimension_bomb(ds) -> list[Finding]:
             f"Declared frame buffer is {frame_bytes / 1024**3:.1f} GiB "
             f"({rows}x{cols}, {samples} ch, {bits}-bit)",
             "These header dimensions force a multi-gigabyte allocation before the image is even "
-            "decoded — a denial-of-service against any viewer/PACS that sizes its buffer from the "
+            "decoded. A denial-of-service against any viewer/PACS that sizes its buffer from the "
             "header. No real clinical frame approaches this. CDR quarantines it.")]
 
     # T2 — encapsulated/tiny payload claims to decode to a huge buffer (decompression bomb).

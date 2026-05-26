@@ -149,7 +149,7 @@ def check_pixel_dimensions(ds: pydicom.Dataset) -> list[Finding]:
         findings.append(Finding(
             "pixel_dimensions", "fail",
             "Pixel data exists but Rows/Columns tags are missing",
-            "This is suspicious — pixel data without dimension metadata."
+            "This is suspicious. Pixel data without dimension metadata."
         ))
         return findings
 
@@ -185,7 +185,7 @@ def check_pixel_dimensions(ds: pydicom.Dataset) -> list[Finding]:
         findings.append(Finding(
             "pixel_dimensions", "fail",
             f"Uncompressed pixel data is {raw_size:,} bytes but the header declares "
-            f"{expected_size:,} — fewer bytes than the image requires",
+            f"{expected_size:,} (fewer bytes than the image requires)",
             "For an uncompressed transfer syntax the stored bytes must cover the declared image. "
             "A shortfall indicates truncation, tampering, or a crafted header that makes a viewer "
             "read past the pixel buffer."
@@ -226,7 +226,7 @@ def check_transfer_syntax(ds: pydicom.Dataset) -> list[Finding]:
     if ts is None:
         findings.append(Finding(
             "transfer_syntax", "warn",
-            "No Transfer Syntax UID found — cannot verify encoding"
+            "No Transfer Syntax UID found, cannot verify encoding"
         ))
         return findings
 
@@ -339,7 +339,7 @@ def check_dates(ds: pydicom.Dataset) -> list[Finding]:
         if dates["StudyDate"] > dates["AcquisitionDate"]:
             findings.append(Finding(
                 "dates", "warn",
-                "Study Date is after Acquisition Date — unusual ordering"
+                "Study Date is after Acquisition Date (unusual ordering)"
             ))
 
     # If everything looks fine
@@ -365,7 +365,7 @@ def check_patient_info(ds: pydicom.Dataset) -> list[Finding]:
     if not patient_name and not patient_id:
         findings.append(Finding(
             "patient_info", "warn",
-            "No patient identification fields — file may have been anonymized or stripped"
+            "No patient identification fields, file may have been anonymized or stripped"
         ))
     else:
         has_name = bool(patient_name and str(patient_name).strip())
@@ -402,18 +402,18 @@ def check_institution(ds: pydicom.Dataset) -> list[Finding]:
         info_str = ", ".join(f"{k}: {v}" for k, v in present.items())
         findings.append(Finding(
             "provenance", "pass",
-            f"Device provenance present — {info_str}"
+            f"Device provenance present: {info_str}"
         ))
     elif len(present) >= 1:
         findings.append(Finding(
             "provenance", "info",
-            f"Partial provenance — missing: {', '.join(missing)}",
+            f"Partial provenance. Missing: {', '.join(missing)}",
             "Limited provenance data makes it harder to verify image origin."
         ))
     else:
         findings.append(Finding(
             "provenance", "warn",
-            "No provenance information — cannot verify image origin",
+            "No provenance information, cannot verify image origin",
             "Missing institution, manufacturer, station, and model information. "
             "This is common in anonymized files but suspicious in clinical imports."
         ))
@@ -463,7 +463,7 @@ def check_uid_uniqueness(ds: pydicom.Dataset) -> list[Finding]:
     if len(uid_values) != len(set(uid_values)):
         findings.append(Finding(
             "uid_check", "fail",
-            "Duplicate UIDs found — Study, Series, and SOP Instance UIDs should all be unique",
+            "Duplicate UIDs found. Study, Series, and SOP Instance UIDs should all be unique.",
             "Identical UIDs across different levels indicate copy/paste fabrication."
         ))
 

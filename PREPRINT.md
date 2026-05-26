@@ -31,8 +31,12 @@ additional files) across 13 transfer syntaxes. Against the three reference toolk
 DicomLock flags 51 files that every toolkit accepts as valid, and no file it passes as clean is
 rejected by a toolkit (McNemar chi-square 49.0, p < 1e-6). The adversarial round found and fixed a
 real defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
-disarm; we report it as a worked example of the method. DicomLock is positioned as a compensating
-control for the systems an automated patch loop cannot reach, not as a replacement for patching.
+disarm; we report it as a worked example of the method. As a secondary contribution, we audit
+residual re-identification risk across 945 public "de-identified" files and find substantial
+pixel-domain risk (facial-geometry features on 96.7 percent of head MR, burned-in text on 89.3
+percent of chest radiographs) that current tag anonymization is structurally unable to fix.
+DicomLock is positioned as a compensating control for the systems an automated patch loop cannot
+reach, not as a replacement for patching.
 
 ---
 
@@ -181,7 +185,9 @@ common transfer syntax. To exercise the codec and private-tag paths that uniform
 to test whether the false-positive and fidelity numbers hold across a different body region, we
 additionally pulled 370 real clinical files from TCIA in three further public datasets: 120 brain MR
 from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and 100 abdomen CT from TCGA-KIRC, and ran
-both the scanner and the CDR rebuild over them (bench.diverse_check).
+both the scanner and the CDR rebuild over them (bench.diverse_check). The chest CT corpus was
+sampled across LIDC-IDRI, NSCLC-Radiomics, TCGA-LUAD, and COVID-19-AR. Per-collection sources and
+data-use terms are listed under [24].
 
 A separate harness runs the JPEG 2000 pixel stream of a file through a pinned OpenJPEG 2.3.0 build
 compiled with AddressSanitizer, inside a container with a memory limit, to measure whether CDR
@@ -410,4 +416,10 @@ primary measurement, it is cited as such in the text.
 24. Clark K, Vendt B, Smith K, et al. The Cancer Imaging Archive (TCIA): maintaining and operating a
     public information repository. Journal of Digital Imaging 2013;26(6):1045-1057. (Source of the
     real clinical CT, MR, and radiography used for the false-positive and fidelity evaluation; per-
-    collection citations and data-use terms are confirmed before artifact release.)
+    collection citations and data-use terms are confirmed before artifact release.) Per-collection
+    sources used in this work: LIDC-IDRI (cancerimagingarchive.net/collection/lidc-idri/),
+    NSCLC-Radiomics (cancerimagingarchive.net/collection/nsclc-radiomics/), TCGA-LUAD
+    (cancerimagingarchive.net/collection/tcga-luad/), COVID-19-AR
+    (cancerimagingarchive.net/collection/covid-19-ar/), UPENN-GBM
+    (cancerimagingarchive.net/collection/upenn-gbm/), and TCGA-KIRC
+    (cancerimagingarchive.net/collection/tcga-kirc/).

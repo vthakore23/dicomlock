@@ -130,7 +130,7 @@ def _pct(pair):
 def _ci(triple):
     """Format a (point, low, high) proportion triple as a 95% CI string."""
     _, lo, hi = triple
-    return f"{100*lo:.1f}–{100*hi:.1f}%"
+    return f"{100*lo:.1f} to {100*hi:.1f}%"
 
 
 def render_markdown(summary):
@@ -198,5 +198,5 @@ def render_markdown(summary):
             L.append(f"- {label}: 0")
     if not any_fail:
         L.append("\nNo failures found on this corpus. That is a result to distrust until the corpus is "
-                 "hard enough — scale it and add the pinned vulnerable codec before believing it.")
+                 "hard enough. Scale it and add the pinned vulnerable codec before believing it.")
     return "\n".join(L) + "\n"

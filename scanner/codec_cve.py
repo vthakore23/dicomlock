@@ -99,7 +99,7 @@ def check_codec_cve_exposure(ds) -> list[Finding]:
     if ts in _JPIP:
         findings.append(Finding(
             "codec_cve", "warn",
-            "Pixel data is JPIP-referenced — the parser fetches it from a remote URL",
+            "Pixel data is JPIP-referenced. The parser fetches it from a remote URL",
             "JPIP transfer syntaxes point pixel data at an external server. A crafted file can "
             "steer a PACS/viewer to attacker-controlled or internal endpoints (SSRF-class) before "
             "any codec runs. CDR resolves/strips the reference rather than fetching it."))
@@ -109,7 +109,7 @@ def check_codec_cve_exposure(ds) -> list[Finding]:
     if decoder in _SAFE_DECODERS:
         if not findings:
             findings.append(Finding("codec_cve", "pass",
-                                    f"Pixel data is {name} — no third-party image codec invoked"))
+                                    f"Pixel data is {name}. No third-party image codec invoked"))
         return findings
 
     db = _load_db()
@@ -122,13 +122,13 @@ def check_codec_cve_exposure(ds) -> list[Finding]:
         audit = (f" Audit at {template.format(id=cves[0]['id'])} (substitute any CVE id)."
                  if template else "")
     else:
-        tail = "third-party C/C++ code parsing attacker-controlled data — audit-worthy"
+        tail = "third-party C/C++ code parsing attacker-controlled data (audit-worthy)"
         audit = ""
 
     findings.append(Finding(
         "codec_cve", "warn",
         f"Encapsulated pixel data decodes via {decoder} ({name})",
         f"{decoder} is {tail}. This file routes through that decoder deep inside the PACS/viewer, "
-        "on devices that are slow to patch. This is exposure, not proof of exploit — verify "
+        "on devices that are slow to patch. This is exposure, not proof of exploit. Verify "
         f"current NVD/CISA advisories.{audit} CDR can transcode through a hardened path."))
     return findings

@@ -59,14 +59,14 @@ def safe_transcode_to_native(in_path: str, out_path: str, timeout: int = TIMEOUT
         )
     except subprocess.TimeoutExpired:
         _unlink(out_path)
-        return False, f"sandboxed decode hung (> {timeout}s) — denial-of-service codec input"
+        return False, f"sandboxed decode hung (> {timeout}s), denial-of-service codec input"
 
     if proc.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
         return True, "ok"
 
     _unlink(out_path)
     if proc.returncode < 0:
-        return False, (f"sandboxed decode crashed (killed by signal {-proc.returncode}) — "
+        return False, (f"sandboxed decode crashed (killed by signal {-proc.returncode}): "
                        "codec memory fault; file quarantined")
     last = (proc.stderr.decode("utf-8", "ignore").strip().splitlines() or ["decode failed"])[-1]
     return False, f"sandboxed decode failed: {last[:200]}"
