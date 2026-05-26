@@ -35,7 +35,7 @@ from scanner.pipeline import (
 
 
 app = FastAPI(title="DicomLock", description="DICOM Security Scanner API",
-              version=SCANNER_VERSION.split()[-1] if " " in SCANNER_VERSION else "0.8.0")
+              version=SCANNER_VERSION.split()[-1] if " " in SCANNER_VERSION else "0.8.1")
 
 # CORS: allow the local frontend (and any caller running this self-hosted).
 app.add_middleware(
