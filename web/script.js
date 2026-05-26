@@ -1,4 +1,4 @@
-// DicomLock — Web UI
+// DicomLock, Web UI
 
 const API = "/api/scan";
 
@@ -231,7 +231,7 @@ $("#disarm-btn").addEventListener("click", async () => {
     const ct = res.headers.get("Content-Type") || "";
 
     if (res.ok && ct.includes("application/dicom")) {
-      // A clean, rebuilt DICOM came back — download it.
+      // A clean, rebuilt DICOM came back, download it.
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -240,11 +240,11 @@ $("#disarm-btn").addEventListener("click", async () => {
       a.click();
       URL.revokeObjectURL(url);
       const changes = res.headers.get("X-DicomLock-Changes");
-      showToast("Disarmed — clean file downloaded" + (changes ? `: ${changes}` : ""), "ok");
+      showToast("Disarmed, clean file downloaded" + (changes ? `: ${changes}` : ""), "ok");
     } else {
       const j = await res.json().catch(() => ({}));
-      if (j.action === "clean") showToast("Already clean — no disarm needed.", "ok");
-      else if (j.action === "quarantined") showToast("QUARANTINED — " + (j.reason || "cannot be made safe"), "bad");
+      if (j.action === "clean") showToast("Already clean, no disarm needed.", "ok");
+      else if (j.action === "quarantined") showToast("QUARANTINED: " + (j.reason || "cannot be made safe"), "bad");
       else showToast(j.detail || "Disarm failed", "bad");
     }
   } catch (err) {

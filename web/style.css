@@ -1,4 +1,4 @@
-/* DicomLock Scanner — Web UI */
+/* DicomLock Scanner, Web UI */
 
 :root {
   --bg-primary: #06060b;
@@ -16,6 +16,14 @@
   --green: #00E676;
   --yellow: #FFD600;
   --red: #FF4444;
+  /* Brand teal (matches the marketing site); teal doubles as the clean/safe color,
+     amber is the mid-risk step, alert red is the high-risk / finding color. */
+  --teal: #2dd4bf;
+  --teal-dim: rgba(45, 212, 191, 0.14);
+  --amber: #f5b14c;
+  --amber-dim: rgba(245, 177, 76, 0.14);
+  --alert: #f4727d;
+  --alert-dim: rgba(244, 114, 125, 0.16);
   --gradient: linear-gradient(135deg, #00F0FF, #7B61FF);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: 'JetBrains Mono', monospace;
@@ -479,7 +487,7 @@ main {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.5px;
-  color: var(--text-muted);
+  color: var(--teal);
 }
 
 .reid-badge {
@@ -490,10 +498,10 @@ main {
   border-radius: 6px;
 }
 
-.reid-badge.minimal  { background: rgba(0, 230, 118, 0.12); color: var(--green); }
-.reid-badge.low      { background: var(--cyan-dim); color: var(--cyan); }
-.reid-badge.moderate { background: rgba(255, 214, 0, 0.12); color: var(--yellow); }
-.reid-badge.high     { background: rgba(255, 68, 68, 0.18); color: #ff6666; }
+.reid-badge.minimal  { background: var(--teal-dim); color: var(--teal); }
+.reid-badge.low      { background: var(--teal-dim); color: var(--teal); }
+.reid-badge.moderate { background: var(--amber-dim); color: var(--amber); }
+.reid-badge.high     { background: var(--alert-dim); color: var(--alert); }
 
 .reid-bar-container {
   width: 100%;
@@ -511,10 +519,10 @@ main {
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.reid-bar.minimal  { background: var(--green); }
-.reid-bar.low      { background: var(--cyan); }
-.reid-bar.moderate { background: var(--yellow); }
-.reid-bar.high     { background: var(--red); }
+.reid-bar.minimal  { background: var(--teal); }
+.reid-bar.low      { background: var(--teal); }
+.reid-bar.moderate { background: var(--amber); }
+.reid-bar.high     { background: var(--alert); }
 
 .reid-channels {
   display: flex;

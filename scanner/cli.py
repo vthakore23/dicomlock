@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DicomLock — command-line interface.
+DicomLock, command-line interface.
 
 Usage:
     dicomlock <dicom_file_or_directory> [--disarm] [--deid]
@@ -69,7 +69,7 @@ def print_banner():
  | | | | |/ __/ _ \\| '_ \\| |   / _ \\ / __| |/ /
  | |_| | | (_| (_) | | | | |__| (_) | (__|   <
  |____/|_|\\___\\___/|_| |_|_____\\___/ \\___|_|\\_\\{C.RESET}
-{C.DIM}  {SCANNER_VERSION} — DICOM file-security + CDR{C.RESET}
+{C.DIM}  {SCANNER_VERSION}, DICOM file-security + CDR{C.RESET}
 """)
 
 
@@ -141,23 +141,66 @@ def print_report(report: dict):
     print()
 
 
+def _reid_descriptors(dims: dict) -> dict:
+    """One short, human descriptor per channel: what actually fired."""
+    out = {}
+    s = dims.get("structured_identifiers", {})
+    crit, other = len(s.get("critical_tags", [])), s.get("other_profile_tags", 0)
+    out["structured_identifiers"] = (
+        f"{crit} critical + {other} other profile tag(s) populated" if (crit or other)
+        else "none populated")
+    t = dims.get("text_identifiers", {})
+    parts = ([("free-text PHI") ] if t.get("free_text_phi") else []) + \
+            (["private-tag PHI"] if t.get("private_tag_phi") else [])
+    out["text_identifiers"] = ", ".join(parts) if parts else "none detected"
+    b = dims.get("burned_in_pixels", {})
+    out["burned_in_pixels"] = "; ".join(b.get("reasons", [])) or "none detected"
+    f = dims.get("facial_geometry", {})
+    detail = f.get("detail", "") or f.get("severity", "")
+    out["facial_geometry"] = (detail[:54] + "...") if len(detail) > 57 else (detail or "not a head scan")
+    return out
+
+
 def print_reid_risk(report: dict):
-    """Print the composite re-identification-risk score (only present when --deid was used)."""
+    """Print the composite re-identification-risk score (only present when --deid was used).
+
+    First-class output: a colored score bar plus a per-channel breakdown of what fired, so a user can
+    see at a glance which leakage channels (structured tags, free text, burned-in pixels, facial
+    geometry) keep a file re-identifiable.
+    """
     r = report.get("reid_risk")
     if not r:
         return
     band = r.get("band", "?")
     band_color = {
-        "MINIMAL": C.GREEN, "LOW": C.CYAN, "MODERATE": C.YELLOW,
+        "MINIMAL": C.GREEN, "LOW": C.GREEN, "MODERATE": C.YELLOW,
         "HIGH": C.BG_RED + C.WHITE, "ERROR": C.RED,
     }.get(band, C.WHITE)
+    bar_color = (C.GREEN if band in ("MINIMAL", "LOW")
+                 else C.YELLOW if band == "MODERATE" else C.RED)
     score = r.get("score")
     score_str = f"{score}/100" if isinstance(score, int) else "n/a"
-    print(f"  {C.BOLD}RE-IDENTIFICATION RISK{C.RESET}  "
-          f"{band_color}{C.BOLD} {band} {C.RESET}  (score {score_str})")
-    for dim, v in (r.get("dimensions") or {}).items():
-        label = dim.replace("_", " ")
-        print(f"    {C.DIM}{label:26s}{C.RESET} {v.get('points', 0):>3} pts")
+
+    print(f"  {C.BOLD}RE-IDENTIFICATION RISK{C.RESET}  {band_color}{C.BOLD} {band} {C.RESET}  "
+          f"(score {score_str})")
+    if isinstance(score, int):
+        width = 40
+        filled = int(round(score / 100 * width))
+        bar = "█" * filled + "░" * (width - filled)
+        print(f"  {bar_color}{bar}{C.RESET}  {score_str}")
+
+    dims = r.get("dimensions") or {}
+    desc = _reid_descriptors(dims)
+    labels = [
+        ("structured_identifiers", "structured tags"),
+        ("text_identifiers", "free text + private"),
+        ("burned_in_pixels", "burned-in pixels"),
+        ("facial_geometry", "facial geometry"),
+    ]
+    for key, label in labels:
+        pts = dims.get(key, {}).get("points", 0)
+        pts_color = C.DIM if pts == 0 else C.WHITE
+        print(f"    {label:22s} {pts_color}{pts:>3} pts{C.RESET}  {C.DIM}{desc.get(key, '')}{C.RESET}")
     if r.get("note"):
         print(f"  {C.DIM}{r['note']}{C.RESET}")
     print()
@@ -179,7 +222,7 @@ def print_action(action: dict):
         print(f"  {C.BG_RED}{C.WHITE}{C.BOLD} QUARANTINED {C.RESET} cannot safely disarm")
         print(f"    {C.DIM}{action.get('reason', '')}{C.RESET}\n")
     elif a == "clean":
-        print(f"  {C.DIM}No disarm needed — already clean.{C.RESET}\n")
+        print(f"  {C.DIM}No disarm needed, already clean.{C.RESET}\n")
 
 
 def main():

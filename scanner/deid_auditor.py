@@ -1,14 +1,14 @@
 """
-DicomLock — De-identification Auditor (Module 4)
+DicomLock, De-identification Auditor (Module 4)
 
 Checks whether DICOM files have been properly de-identified and flags
 residual PHI (Personally Identifiable Information) exposure risks.
 
 Four checks:
-  1. check_deid_profile_completeness — PS3.15 Table E.1-1 Basic Profile tag audit
-  2. check_private_tags_phi         — private (odd-group) tags scanned for PHI patterns
-  3. check_burned_in_phi            — pixel heuristics for burned-in text (no OCR required)
-  4. check_facial_geometry           — re-identification risk for head CT/MR scans
+  1. check_deid_profile_completeness, PS3.15 Table E.1-1 Basic Profile tag audit
+  2. check_private_tags_phi, private (odd-group) tags scanned for PHI patterns
+  3. check_burned_in_phi, pixel heuristics for burned-in text (no OCR required)
+  4. check_facial_geometry, re-identification risk for head CT/MR scans
 """
 
 import re
@@ -26,7 +26,7 @@ from scanner.findings import Finding
 
 
 # ---------------------------------------------------------------------------
-# DICOM PS3.15 Table E.1-1 — Basic Confidentiality Profile
+# DICOM PS3.15 Table E.1-1, Basic Confidentiality Profile
 # Tags that MUST be removed or emptied for proper de-identification.
 # Format: (group, element): ("Tag Name", action)
 # Actions: D = replace with dummy, Z = zero-length, X = remove, K = keep but clean
@@ -79,7 +79,7 @@ BASIC_PROFILE_TAGS = {
     (0x3006, 0x00C2): ("RelatedFrameOfReferenceUID", "U"),
 }
 
-# Subset of high-severity tags — these are almost always PHI
+# Subset of high-severity tags, these are almost always PHI
 CRITICAL_PHI_TAGS = {
     (0x0010, 0x0010),  # PatientName
     (0x0010, 0x0020),  # PatientID
@@ -92,12 +92,12 @@ CRITICAL_PHI_TAGS = {
 
 # Known vendor-specific private tags that often carry PHI
 VENDOR_PHI_PRIVATE_TAGS = {
-    (0x0043, 0x1029): "GE — may contain patient/exam info",
-    (0x0019, 0x100C): "Siemens — may contain referring physician",
-    (0x0019, 0x100D): "Siemens — may contain body part text",
-    (0x2001, 0x1003): "Philips — may contain exam description",
-    (0x2005, 0x100E): "Philips — may contain station/institution info",
-    (0x7053, 0x1000): "Toshiba — may contain exam protocol info",
+    (0x0043, 0x1029): "GE, may contain patient/exam info",
+    (0x0019, 0x100C): "Siemens, may contain referring physician",
+    (0x0019, 0x100D): "Siemens, may contain body part text",
+    (0x2001, 0x1003): "Philips, may contain exam description",
+    (0x2005, 0x100E): "Philips, may contain station/institution info",
+    (0x7053, 0x1000): "Toshiba, may contain exam protocol info",
 }
 
 # Regex patterns for common PHI in text
@@ -131,7 +131,7 @@ def check_deid_profile_completeness(ds: pydicom.Dataset) -> list[Finding]:
         try:
             elem = ds[tag]
         except KeyError:
-            continue  # tag absent — good
+            continue  # tag absent, good
 
         # Check if the value is effectively empty
         value = elem.value
@@ -163,7 +163,7 @@ def check_deid_profile_completeness(ds: pydicom.Dataset) -> list[Finding]:
     if total_present == 0:
         findings.append(Finding(
             "deid_profile", "pass",
-            "De-identification profile complete — no Basic Profile tags contain data"
+            "De-identification profile complete, no Basic Profile tags contain data"
         ))
     else:
         # Critical PHI tags present
@@ -237,7 +237,7 @@ def check_private_tags_phi(ds: pydicom.Dataset) -> list[Finding]:
     elif not phi_hits:
         findings.append(Finding(
             "private_tags_phi", "pass",
-            f"Scanned {private_tag_count} private tag(s) — no PHI patterns detected"
+            f"Scanned {private_tag_count} private tag(s), no PHI patterns detected"
         ))
     else:
         hit_detail = "; ".join(
@@ -279,7 +279,7 @@ def _decode_element_text(elem) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Check 3: Burned-in PHI detection (pixel heuristics — no OCR)
+# Check 3: Burned-in PHI detection (pixel heuristics, no OCR)
 # ---------------------------------------------------------------------------
 
 # Regions to crop and analyze for burned-in text.
@@ -307,7 +307,7 @@ def check_burned_in_phi(ds: pydicom.Dataset) -> list[Finding]:
     if burned_in_tag == "YES":
         findings.append(Finding(
             "burned_in_phi", "warn",
-            "BurnedInAnnotation tag is 'YES' — file declares burned-in text",
+            "BurnedInAnnotation tag is 'YES', file declares burned-in text",
             details="Image contains overlaid text per DICOM header. "
                     "This may include patient names, dates, or institution info."
         ))
@@ -342,7 +342,7 @@ def check_burned_in_phi(ds: pydicom.Dataset) -> list[Finding]:
     # Normalize to 0-1
     pmin, pmax = pixels.min(), pixels.max()
     if pmax - pmin < 1e-6:
-        # Flat image — no text possible
+        # Flat image, no text possible
         if burned_in_tag != "YES":
             findings.append(Finding(
                 "burned_in_phi", "pass",
@@ -447,11 +447,11 @@ def check_facial_geometry(ds: pydicom.Dataset) -> list[Finding]:
     if not is_head_scan:
         findings.append(Finding(
             "facial_geometry", "pass",
-            f"Not a head scan (body part: '{body_part or 'unspecified'}') — low re-identification risk"
+            f"Not a head scan (body part: '{body_part or 'unspecified'}'), low re-identification risk"
         ))
         return findings
 
-    # It's a head CT/MR — assess volumetric risk
+    # It's a head CT/MR, assess volumetric risk
     num_frames = 1
     try:
         nf = getattr(ds, "NumberOfFrames", None)
@@ -473,15 +473,15 @@ def check_facial_geometry(ds: pydicom.Dataset) -> list[Finding]:
 
     # Risk assessment
     if num_frames <= 1 and not has_position:
-        # Single-slice — low but non-zero risk
+        # Single-slice, low but non-zero risk
         findings.append(Finding(
             "facial_geometry", "info",
-            f"Head {modality} — single slice, low re-identification risk",
+            f"Head {modality}, single slice, low re-identification risk",
             details="Single 2D slice cannot be used for 3D facial reconstruction. "
                     "However, facial features may still be partially visible."
         ))
     else:
-        # Multi-slice or volumetric — assess based on slice thickness
+        # Multi-slice or volumetric, assess based on slice thickness
         risk_level = "warn"
         risk_detail = (
             f"Head {modality} with volumetric data "
@@ -500,11 +500,11 @@ def check_facial_geometry(ds: pydicom.Dataset) -> list[Finding]:
                 risk_level = "info"
                 risk_detail += "). Thick slices reduce but do not eliminate reconstruction risk."
         else:
-            risk_detail += "). Slice thickness unknown — cannot fully assess risk."
+            risk_detail += "). Slice thickness unknown, cannot fully assess risk."
 
         findings.append(Finding(
             "facial_geometry", risk_level,
-            f"Head {modality} scan — facial re-identification risk",
+            f"Head {modality} scan carries facial re-identification risk",
             details=risk_detail + " Consider defacing (skull-stripping) before sharing."
         ))
 

@@ -68,12 +68,12 @@ DicomLock works on the file. It does not break or weaken encryption and makes no
 
 ## Results
 
-All reproducible from the scripts in [`_attack_test/`](_attack_test/):
+Reproducible with `python -m bench` and the scripts in [`_attack_test/`](_attack_test/). The real-clinical-data figures use public TCIA images, which are not shipped in this repo:
 
-- Zero false positives across 575 real clinical CT files, and zero on a separate mixed-compression corpus spanning 12 transfer syntaxes.
-- 20 of 20 crafted attack fixtures flagged by the expected check.
+- Zero false positives across 845 real clinical files in three modalities (575 CT, 120 MR, 150 chest radiographs), and zero on a separate mixed-compression corpus of 12 transfer syntaxes.
+- 80 of 80 crafted attack files flagged by the expected check.
 - pydicom, GDCM, and dcmtk accept the weaponized files without complaint; DicomLock flags every one.
-- Disarmed pixels are bit-exact against two independent decoders (GDCM and pylibjpeg) on every lossless sample.
+- Disarmed pixels are bit-exact on native and lossless sources, checked against two independent decoders (GDCM and pylibjpeg).
 - The codec decode is sandboxed, so a crashing or hanging decoder is contained and the file is quarantined, not the tool.
 
 The attack fixtures in this repo are inert. Polyglots carry only magic bytes, and payload tags carry a header plus zero padding. No working malware ships here.
