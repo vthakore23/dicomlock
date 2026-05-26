@@ -423,3 +423,83 @@ primary measurement, it is cited as such in the text.
     (cancerimagingarchive.net/collection/covid-19-ar/), UPENN-GBM
     (cancerimagingarchive.net/collection/upenn-gbm/), and TCGA-KIRC
     (cancerimagingarchive.net/collection/tcga-kirc/).
+
+---
+
+## Appendix A. JAMIA submission format
+
+The free-form abstract above is the arXiv version. For a JAMIA submission, replace it with the
+structured abstract below and insert the Statement of Significance before Section 1. JAMIA expects
+section names "Background and significance," "Objective," "Materials and Methods," "Results,"
+"Discussion," and "Conclusion." The current section names map directly: Sections 1 and 2 become
+"Background and significance," Section 3 becomes the "Objective" paragraph (a sentence or two),
+Sections 4 and 5 become "Materials and Methods," Section 6 stays "Results," Sections 7 and 8 fold
+into "Discussion," and Section 9 plus a one-paragraph summary becomes "Conclusion."
+
+### Structured abstract (target ~250 words)
+
+**Objective.** Test whether decoding-free scanning paired with Content Disarm and Reconstruction
+(CDR) neutralizes the modeled file and codec attack classes on DICOM medical-image files while
+preserving diagnostic fidelity, and quantify the residual re-identification risk that current tag
+anonymization leaves in the pixel domain.
+
+**Materials and Methods.** We built DicomLock, an open-source self-hosted scanner and CDR engine
+(`pip install dicomlock`, Apache-2.0). A benchmark engine runs a labeled corpus of inert tampered
+files through three production toolkits (pydicom, GDCM, dcmtk) and through CDR, and grows the
+corpus adversarially. The false-positive and fidelity evaluation uses 945 real clinical files
+across four public TCIA collections (LIDC-IDRI / NSCLC-Radiomics / TCGA-LUAD / COVID-19-AR chest
+CT, TCGA-KIRC abdomen CT, UPENN-GBM brain MR, LIDC-IDRI chest radiography) spanning 3 modalities
+and 3 body regions. A residual re-identification audit pairs DicomLock's ordinal score with a
+standard tag anonymizer (dicognito 0.19) on the same files.
+
+**Results.** 80 of 80 tampered files detected, 80 of 80 neutralized, 0 false positives across 945
+real benign files plus 30 curated (one-sided 95% upper bound 0.50%), CDR rebuilds bit-exact on
+every native and lossless source across 13 transfer syntaxes (623 of 623). DicomLock flagged 51
+files every reference toolkit accepted as valid, with 0 discordant cases against any toolkit
+(McNemar chi-square 49.0, p < 1e-6). The audit found pixel-domain re-identification risk that tag
+anonymization cannot remove: facial-geometry features on 96.7% of brain MR, burned-in pixel text
+on 89.3% of chest radiographs and 17.0% of abdomen CT versus 8.0% on chest CT (same modality,
+different body region).
+
+**Discussion.** CDR is a compensating control for the systems an automated patch loop cannot
+reach, not a replacement for patching, and tag-only anonymization is not re-identification safety.
+
+**Conclusion.** Decoding-free scanning plus sandboxed CDR is reproducibly safe on real clinical
+imaging and is an addressable defense for systems that are slow to patch.
+
+### Statement of Significance (target ~250 words)
+
+**Problem.** Hospitals run exactly the software AI-assisted vulnerability discovery now targets
+(DICOM toolkits and image and video codecs), and they patch slowly because of device
+recertification and legacy or embedded equipment. The health sector was explicitly omitted from
+the early-access protection group for one such system in 2026, an omission Health-ISAC publicly
+warned could jeopardize health-sector security. At the same time, current tag-based
+de-identification on public "de-identified" medical imaging leaves facial geometry and burned-in
+pixel text in place, channels that recent work has shown can re-identify research participants
+with up to 98 percent accuracy.
+
+**What is already known.** Commercial DICOM CDR products exist (OPSWAT MetaDefender added DICOM
+support in 2024, Votiro markets DICOM file disarm), and academic transcoding-based image sanitizers
+predate this work. Healthcare device-security vendors monitor network and device, not the file.
+No current standard mandates DICOM file sanitization.
+
+**What this study adds.** A reproducible, open-source artifact that scans and disarms DICOM files
+at PACS depth, evaluated as a paired methodology rather than asserted, with the bench engine,
+adversarial generator, fidelity-at-scale harness, and pinned vulnerable codec all released. An
+empirical residual re-identification finding across 945 public files showing that the pixel-domain
+risk standard tag anonymization cannot fix is large and varies by anatomical region, not modality
+alone. A self-discovered and transparently fixed defect in our own CDR is reported as a worked
+example of the falsification methodology.
+
+### Data and code availability
+
+Code, benchmark engine, adversarial generator, fidelity harness, and pinned-codec Dockerfiles are
+released under Apache-2.0 at github.com/vthakore23/dicomlock and on PyPI (`pip install dicomlock`).
+The clinical evaluation uses public TCIA collections listed under reference 24; no protected
+health information is shipped or used. REPRODUCE.md maps each headline number in this paper to its
+exact command.
+
+### Author contributions, funding, and competing interests
+
+To be completed at submission. Author contributions per CRediT taxonomy. No external funding.
+No competing interests to declare.
