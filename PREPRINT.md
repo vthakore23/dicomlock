@@ -258,6 +258,18 @@ reconstructability) [18, 19], ranking a clean file at 0 (MINIMAL), a file with r
 (MODERATE), and a fully identified file at 100 (HIGH). It is a triage score, not a certification of
 de-identification.
 
+Applied to 845 public "de-identified" files across three modalities (575 CT, 120 brain MR from
+UPENN-GBM, and 150 chest radiographs from LIDC-IDRI), the audit finds substantial pixel-domain
+residual risk that no tag anonymizer can fix: facial-geometry risk fires on 96.7 percent of the head
+MR (the Mayo concern [18, 19]), and burned-in pixel text on 89.3 percent of the chest radiographs and
+22.5 percent of the brain MR. A paired comparison against a standard tag anonymizer (dicognito 0.19)
+on 60 of those brain MR confirmed the gap: the anonymizer changed every direct identifier (120 of 120,
+tag linkage broken) but left the pixel data byte-identical (60 of 60), so the pixel-domain channels
+reported above are provably unchanged by current tag-based anonymization. The tag-domain channels
+also contribute to the ordinal score because TCIA pseudonymizes rather than empties tags, and we
+report that floor honestly rather than treat it as undetected direct PHI. The harnesses for both
+results (`bench.reid_audit` and `bench.reid_vs_anonymizer`) ship in the released artifact.
+
 ## 7. Discussion
 
 The results support the narrow claim we set out to test: rebuilding a DICOM file from a validated
