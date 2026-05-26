@@ -38,28 +38,33 @@ first run.
 |--------|---------|
 | Detection 80/80, neutralization 80/80, false positives on the curated set, differentiation, McNemar | `python -m bench` |
 | CDR bit-exact fidelity at scale (623/623 native and lossless across 13 transfer syntaxes) | `python -m bench.fidelity` |
-| Diverse-modality false positives and fidelity (0 FP, 270/270 bit-exact on MR and XR) | `python -m bench.diverse_check` |
+| Diverse-modality false positives and fidelity (0 FP, 370/370 bit-exact on MR, XR, and abdomen CT) | `python -m bench.diverse_check` |
+| Residual re-identification risk across public "de-identified" datasets | `python -m bench.reid_audit` |
+| Re-identification score vs a standard tag anonymizer (dicognito) | `python -m bench.reid_vs_anonymizer` |
 | The adversarial corpus that tries to break the tool (inert, labeled) | `python -m bench.generate` |
 | Pinned vulnerable codec (OpenJPEG 2.3.0 + ASan), optional | `python -m bench.pinned --demo FILE.dcm` |
 
 ## Real clinical data (not shipped here)
 
-This repo contains no patient data. The real-clinical-data figures (0 false positives across 845 real
-files, and the bit-exact rebuilds at scale) are measured on public collections from The Cancer Imaging
-Archive, which you fetch yourself. The bundled [`download_tcia.py`](download_tcia.py) pulls one inert
-slice per series over the public NBIA API:
+This repo contains no patient data. The real-clinical-data figures (0 false positives across 945 real
+files in three modalities and three body regions, and the bit-exact rebuilds at scale) are measured
+on public collections from The Cancer Imaging Archive, which you fetch yourself. The bundled
+[`download_tcia.py`](download_tcia.py) pulls one inert slice per series over the public NBIA API:
 
 ```bash
-python download_tcia.py --ct 500 --xr 150          # CT and chest radiography
-python download_tcia.py --collection UPENN-GBM --modality MR --count 120   # brain MR
+python download_tcia.py --ct 500 --xr 150                                                # chest CT and chest radiography
+python download_tcia.py --collection UPENN-GBM --modality MR --count 120                 # brain MR
+python download_tcia.py --collection TCGA-KIRC --modality CT --count 100 --output-name tcia_ct_abdomen  # abdomen CT
 ```
 
-Files land in `data/tcia_ct/`, `data/tcia_xr/`, and `data/tcia_mr/` (all gitignored). Then:
+Files land in `data/tcia_ct/`, `data/tcia_xr/`, `data/tcia_mr/`, and `data/tcia_ct_abdomen/` (all
+gitignored). Then:
 
 ```bash
-python -m bench                  # the false-positive scale pass picks up data/tcia_ct automatically
-python -m bench.fidelity         # bit-exact rebuilds across the CTs and bundled diverse test data
-python -m bench.diverse_check    # false positives + fidelity over the MR and XR you pulled
+python -m bench                                                              # the false-positive scale pass picks up data/tcia_ct automatically
+python -m bench.fidelity                                                     # bit-exact rebuilds across the CTs and bundled diverse test data
+python -m bench.diverse_check --dir data/tcia_ct_abdomen                     # false positives + fidelity over the diverse modalities you pulled
+python -m bench.reid_audit --dir data/tcia_ct_abdomen --label "CT (abdomen, TCGA-KIRC)"  # residual re-identification risk
 ```
 
 Counts vary slightly run to run because TCIA series selection is sampled, so treat the published

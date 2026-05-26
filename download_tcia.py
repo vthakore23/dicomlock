@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DicomLock — Parallel TCIA Downloader
+DicomLock TCIA downloader (parallel)
 
 Downloads DICOM slices from The Cancer Imaging Archive for calibration
 and classifier training. Uses ThreadPoolExecutor for 10-20x speedup.
@@ -177,7 +177,7 @@ def download_modality(modality_group: str, count: int, workers: int = 15):
 
     existing = len(list(output_dir.glob("*.dcm")))
     print(f"\n{'='*60}")
-    print(f"Downloading {modality_group} — target: {count}, existing: {existing}")
+    print(f"Downloading {modality_group}. target: {count}, existing: {existing}")
     print(f"{'='*60}")
 
     if existing >= count:
@@ -226,14 +226,18 @@ def main():
     parser.add_argument("--collection", type=str, help="Download from a single collection")
     parser.add_argument("--modality", type=str, help="Single modality (with --collection)")
     parser.add_argument("--count", type=int, default=200, help="Count (with --collection)")
+    parser.add_argument("--output-name", type=str,
+                        help="Custom subdirectory name under data/ (with --collection); "
+                             "default is tcia_<modality>")
     args = parser.parse_args()
 
-    print("DicomLock — Parallel TCIA Downloader")
+    print("DicomLock TCIA downloader")
     print(f"Data directory: {DATA_DIR}")
 
     if args.collection:
         # Single collection mode
-        output_dir = DATA_DIR / f"tcia_{args.modality or 'CT'}".lower()
+        subdir = args.output_name or f"tcia_{args.modality or 'CT'}".lower()
+        output_dir = DATA_DIR / subdir
         output_dir.mkdir(parents=True, exist_ok=True)
         modality = args.modality or "CT"
 
@@ -268,7 +272,7 @@ def main():
 
     elapsed = time.time() - start_all
     print(f"\n{'='*60}")
-    print(f"ALL DOWNLOADS COMPLETE — {elapsed:.0f}s total")
+    print(f"ALL DOWNLOADS COMPLETE. {elapsed:.0f}s total")
     for group, count in totals.items():
         print(f"  {group}: {count} files in data/tcia_{group.lower()}/")
     print(f"{'='*60}")

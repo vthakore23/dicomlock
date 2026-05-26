@@ -24,9 +24,10 @@ anything still dangerous. We evaluate it with a benchmark engine that runs a lab
 attacks through both a matrix of three production DICOM toolkits and through CDR, and that grows the
 corpus adversarially to try to break the defense. On the current corpus DicomLock detects 80 of 80
 tampered files, produces 0 false positives across 605 benign files (575 real clinical CTs plus 30
-curated) and across 270 further real MR and radiography files, neutralizes 80 of 80 dangerous inputs,
-and rebuilds every native and lossless file bit-exact (623 in the fidelity harness plus the 270
-additional modality files) across 13 transfer syntaxes. Against the three reference toolkits (pydicom, GDCM, dcmtk),
+curated) and across 370 further real clinical files in three additional body regions and modalities
+(100 abdomen CT, 120 brain MR, 150 chest radiographs), neutralizes 80 of 80 dangerous inputs,
+and rebuilds every native and lossless file bit-exact (623 in the fidelity harness plus the 370
+additional files) across 13 transfer syntaxes. Against the three reference toolkits (pydicom, GDCM, dcmtk),
 DicomLock flags 51 files that every toolkit accepts as valid, and no file it passes as clean is
 rejected by a toolkit (McNemar chi-square 49.0, p < 1e-6). The adversarial round found and fixed a
 real defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
@@ -176,10 +177,11 @@ creators, chained attacks, and benign edge cases), with the explicit goal of sli
 scanner or defeating CDR. The benign set is 30 curated files plus 575 real TCIA clinical CTs (used
 scan-only, since benign files do not need the crash matrix), and a separate fidelity harness adds the
 diverse DICOM test data bundled with pydicom and pylibjpeg, which spans many modalities and every
-common transfer syntax. To exercise the codec and private-tag paths that uniform CT data does not, we
-additionally pulled 270 real clinical files from TCIA in two further modalities, 120 brain MR from
-UPENN-GBM and 150 chest radiographs from LIDC-IDRI, and ran both the scanner and the CDR rebuild over
-them (bench.diverse_check).
+common transfer syntax. To exercise the codec and private-tag paths that uniform chest CT data does not, and
+to test whether the false-positive and fidelity numbers hold across a different body region, we
+additionally pulled 370 real clinical files from TCIA in three further public datasets: 120 brain MR
+from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and 100 abdomen CT from TCGA-KIRC, and ran
+both the scanner and the CDR rebuild over them (bench.diverse_check).
 
 A separate harness runs the JPEG 2000 pixel stream of a file through a pinned OpenJPEG 2.3.0 build
 compiled with AddressSanitizer, inside a container with a memory limit, to measure whether CDR
@@ -204,9 +206,11 @@ All numbers below are from one command (`python -m bench`) plus the fidelity-at-
 events, the one-sided 95% upper bound on the false-positive rate is 0.50 percent. A separate
 mixed-compression corpus of 103 files spanning 12 transfer syntaxes produced 0 false positives on
 conformant files; the 8 files given a blocking verdict were each genuinely non-conformant (no Part-10
-header, truncated, or missing image dimensions). A further 270 real clinical files in two more
-modalities (120 brain MR, 150 chest radiographs) produced 0 false positives, so across all 845 real
-clinical files used here (575 CT, 120 MR, 150 XR) the scanner blocked none.
+header, truncated, or missing image dimensions). A further 370 real clinical files in three additional
+public datasets (120 brain MR from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and 100 abdomen CT
+from TCGA-KIRC) produced 0 false positives, so across all 945 real clinical files used here (575
+chest CT, 100 abdomen CT, 120 brain MR, 150 chest XR; three modalities and three body regions) the
+scanner blocked none.
 
 **Neutralization.** 80 of 80 dangerous inputs were made safe, by quarantine for the un-rebuildable
 classes (length, dimension, and decompression bombs) and by clean rebuild for the rest (Wilson 95% CI
@@ -216,9 +220,10 @@ classes (length, dimension, and decompression bombs) and by clean rebuild for th
 or lossless sources were rebuilt bit-exact (575 CTs and 48 diverse files), spanning 13 transfer
 syntaxes (Implicit and Explicit VR Little Endian, Explicit VR Big Endian, RLE Lossless, JPEG 2000
 Lossless, JPEG Lossless, JPEG-LS Lossless, and Deflated, among others). 20 of 20 lossy-source files
-had their pixels preserved exactly as decoded. The 270 additional MR and radiography files were each
-rebuilt bit-exact as well, including the JPEG Lossless and JPEG 2000 Lossless codec paths the CT corpus
-does not contain. There were 0 fidelity breaks across every modality tested.
+had their pixels preserved exactly as decoded. The 370 additional brain MR, chest radiography, and
+abdomen CT files were each rebuilt bit-exact as well, including the JPEG Lossless and JPEG 2000
+Lossless codec paths the chest CT corpus does not contain. There were 0 fidelity breaks across every
+modality and body region tested.
 
 **Differentiation.** On the 63 tampered files the toolkits actually executed (excluding pre-identified
 bombs, which are never run raw), DicomLock flagged 51 files that every toolkit (pydicom, GDCM, dcmtk)
@@ -258,17 +263,24 @@ reconstructability) [18, 19], ranking a clean file at 0 (MINIMAL), a file with r
 (MODERATE), and a fully identified file at 100 (HIGH). It is a triage score, not a certification of
 de-identification.
 
-Applied to 845 public "de-identified" files across three modalities (575 CT, 120 brain MR from
-UPENN-GBM, and 150 chest radiographs from LIDC-IDRI), the audit finds substantial pixel-domain
-residual risk that no tag anonymizer can fix: facial-geometry risk fires on 96.7 percent of the head
-MR (the Mayo concern [18, 19]), and burned-in pixel text on 89.3 percent of the chest radiographs and
-22.5 percent of the brain MR. A paired comparison against a standard tag anonymizer (dicognito 0.19)
-on 60 of those brain MR confirmed the gap: the anonymizer changed every direct identifier (120 of 120,
-tag linkage broken) but left the pixel data byte-identical (60 of 60), so the pixel-domain channels
-reported above are provably unchanged by current tag-based anonymization. The tag-domain channels
-also contribute to the ordinal score because TCIA pseudonymizes rather than empties tags, and we
-report that floor honestly rather than treat it as undetected direct PHI. The harnesses for both
-results (`bench.reid_audit` and `bench.reid_vs_anonymizer`) ship in the released artifact.
+Applied to 945 public "de-identified" files across four datasets, three modalities, and three body
+regions (575 chest CT, 100 abdomen CT from TCGA-KIRC, 120 brain MR from UPENN-GBM, and 150 chest
+radiographs from LIDC-IDRI), the audit finds substantial pixel-domain residual risk that no tag
+anonymizer can fix, and the risk varies systematically by modality and anatomical region.
+Facial-geometry risk fires on 96.7 percent of the head MR (the Mayo concern [18, 19]) and below one
+percent on every non-head dataset (0.3 percent on chest CT, 0.0 percent on chest XR and abdomen CT),
+sanity-confirming that the channel is anatomically gated rather than spuriously high. Burned-in pixel text fires on 89.3 percent of the chest radiographs, 22.5
+percent of the brain MR, 17.0 percent of the abdomen CT, and 8.0 percent of the chest CT. The factor
+of two difference in burned-in rate between abdomen CT and chest CT, on otherwise comparable scanners
+and the same modality, is a finding in itself: pixel-domain re-identification risk is not a property
+of modality alone but of scanner protocol per body region. A paired comparison against a standard
+tag anonymizer (dicognito 0.19) on 60 of the brain MR confirmed the gap: the anonymizer changed every
+direct identifier (120 of 120, tag linkage broken) but left the pixel data byte-identical (60 of 60),
+so the pixel-domain channels reported above are provably unchanged by current tag-based anonymization.
+The tag-domain channels also contribute to the ordinal score because TCIA pseudonymizes rather than
+empties tags, and we report that floor honestly rather than treat it as undetected direct PHI. The
+harnesses for both results (`bench.reid_audit` and `bench.reid_vs_anonymizer`) ship in the released
+artifact.
 
 ## 7. Discussion
 
