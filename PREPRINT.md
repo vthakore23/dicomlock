@@ -1,6 +1,6 @@
 # Content Disarm and Reconstruction as a Pre-Parse Defense for the DICOM File Attack Surface: A Differential-Evaluation Methodology
 
-**Draft preprint. Status: working draft, results reproduced 2026-05-25.**
+**Draft preprint v2 (reviewer-revised 2026-06-07). Status: working draft. Security and CDR results last fully reproduced 2026-05-25; mammography re-identification audit added 2026-06-07.**
 
 Authors: Vijay Thakore. Correspondence: vthakore@uchicago.edu.
 
@@ -23,20 +23,29 @@ private tags against a default-deny vendor allowlist, and re-scans the rebuilt f
 anything still dangerous. Alongside the artifact, we contribute the differential-evaluation
 methodology used to evaluate it: a labeled corpus of inert attacks is run through both a matrix of
 three production DICOM toolkits and through CDR, McNemar's paired test is applied to the discordant
-cell, and the corpus is grown adversarially until it breaks the defense itself. The methodology is
-general to file-format CDR; we instantiate it on DICOM and publish the falsification report it
-produced, including a defect we found in our own engine. On the current corpus DicomLock detects 80 of 80
-tampered files, produces 0 false positives across 605 benign files (575 real clinical CTs plus 30
-curated) and across 370 further real clinical files in three additional body regions and modalities
-(100 abdomen CT, 120 brain MR, 150 chest radiographs), neutralizes 80 of 80 dangerous inputs,
-and rebuilds every native and lossless file bit-exact (623 in the fidelity harness plus the 370
-additional files) across 13 transfer syntaxes. Single-threaded on commodity hardware, the scanner
-runs at 254 files per second across the 945-file corpus (peak 265 MiB), and the CDR rebuild runs at
-63 to 174 files per second depending on whether the codec sandbox is invoked. Against the three reference toolkits (pydicom, GDCM, dcmtk),
-DicomLock flags 51 files that every toolkit accepts as valid, and no file it passes as clean is
-rejected by a toolkit (McNemar chi-square 49.0, p < 1e-6). The adversarial round found and fixed a
-real defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
-disarm; we report it as a worked example of the method. As a secondary contribution, we audit
+cell, and the corpus is grown adversarially until it breaks the defense itself. We instantiate the
+methodology on DICOM and publish the falsification report it produced, including a defect we
+found in our own engine. We argue, as a clearly labeled conjecture rather than a demonstrated
+result, that the same loop applies to file-format CDR more broadly; we do not instantiate it on a
+second format here. The strongest evidence is externally anchored. Against three production
+reference toolkits (pydicom, GDCM, dcmtk), DicomLock flags 51 weaponized files that every toolkit
+accepts as valid, and no file DicomLock passes as clean is rejected by any toolkit (McNemar's
+paired test on the discordant cell gives chi-square 49.0, p < 1e-6; with c = 0 the test
+degenerates to an exact binomial sign test on the 51 discordant pairs, p approximately 2^-51).
+A pinned OpenJPEG 2.3.0 build with AddressSanitizer faults on a fuzzer-found malformed JPEG 2000
+file; CDR neutralizes the malicious DICOM carrier, which the static scanner alone would miss
+because the carrier header looks benign. The adversarial round also found and fixed a real
+defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
+disarm; we publish what broke and how we fixed it as a worked example of the methodology. On the
+self-authored corpus, detection is 80 of 80 and neutralization is 80 of 80; these are necessary
+but not sufficient evidence, because the corpus is partly of our own construction. False
+positives are 0 across 605 benign files (575 real clinical CTs plus 30 curated) and across 370
+further real clinical files in three additional body regions and modalities (100 abdomen CT, 120
+brain MR, 150 chest radiographs); CDR rebuilds every native and lossless file bit-exact (623 in
+the fidelity harness plus the 370 additional files) across 13 transfer syntaxes. Single-threaded
+on commodity hardware, the scanner runs at 254 files per second across the 945-file corpus (peak
+265 MiB), and the CDR rebuild runs at 63 to 174 files per second depending on whether the codec
+sandbox is invoked. As a secondary contribution, we audit
 residual re-identification risk across 1,045 public "de-identified" files across five datasets
 and find substantial pixel-domain risk (facial-geometry features on 96.7 percent of head MR,
 burned-in text on 89.3 percent of chest radiographs and 52.0 percent of mammograms) that
@@ -50,21 +59,33 @@ reach, not as a replacement for patching.
 
 The bottleneck in software security has shifted from finding vulnerabilities to fixing them. Public
 reporting on AI-assisted vulnerability discovery in 2026 (Anthropic, Project Glasswing / Claude
-Mythos) [1, 2, 3] describes a model that found and exploited large numbers of high and critical defects in a
-short window, with the great majority left unpatched at disclosure; verifiable examples include 271
-Firefox vulnerabilities surfaced in a single pass and a long-lived OpenBSD defect. (A widely cited
-17-year-old FreeBSD NFS finding remains contested, with some researchers arguing it was recalled from
-training data rather than discovered fresh; we cite it only as "found and exploited via Mythos" and
-do not treat it as a settled novel discovery.) Secondary reporting describes the median time from
-disclosure to weaponization falling from hundreds of days to hours; we cite that figure as reported,
-not as a primary measurement.
+Mythos) [1, 2, 3] describes a model that found and exploited large numbers of high and critical
+defects in a short window, with the great majority left unpatched at disclosure. Anthropic-reported
+figures include 271 Firefox vulnerabilities surfaced in a single pass and a long-lived OpenBSD
+defect. Independent CVE attribution is more limited: a public CVE-database review identifies 40 CVEs
+attributed to Anthropic researchers (28 affecting Firefox, nine to wolfSSL, and one each to NGINX
+Plus, FreeBSD, and OpenSSL), with CVE-2026-4747 (the 17-year-old FreeBSD NFS RCE) the only CVE
+explicitly attributed to Project Glasswing by name as of mid-2026; Anthropic has indicated a public
+summary report later in 2026 [26]. The Firefox figure of 181 working exploits, where it is cited, is
+a Firefox 147 benchmark exploit count and not a CVE count [26]. CVE-2026-4747 itself remains
+contested, with some researchers arguing it was recalled from training data rather than discovered
+fresh; we cite it only as "found and exploited via Mythos" and do not treat it as a settled novel
+discovery. Secondary reporting describes the median time from disclosure to weaponization falling
+from hundreds of days to hours; we cite that figure as reported, not as a primary measurement.
 
 Hospitals are among the slowest patchers, constrained by device recertification and by legacy and
-embedded equipment, and they run exactly the software in question: DICOM toolkits and image and video
-codecs. A 2026 advisory from Health-ISAC, reported alongside coverage in STAT, noted that the early
-access group for Glasswing-style protection did not include hospitals, device makers, or other
-health-sector entities, and warned that the omission could jeopardize health-sector security [4, 5]. That is
-the most concrete present-tense reason to harden medical imaging now, rather than an anticipatory one.
+embedded equipment, and they run exactly the software in question: DICOM toolkits and image and
+video codecs. A 2026 advisory from Health-ISAC, reported alongside coverage in STAT, warned that
+the initial Glasswing early-access group did not include hospitals, device makers, or other
+health-sector entities and that the omission could jeopardize health-sector security [4, 5]. In
+June 2026 Anthropic expanded Glasswing to roughly 150 additional organizations across more than
+15 countries, including power, water, healthcare, communications, and hardware among industries
+that had been under-represented in the initial cohort [25]. The expansion changes who can patch
+at the source. It does not change the hospital install base. Vendors and maintainers gain
+accelerated patch discovery, but legacy, embedded, and recertification-locked equipment already
+deployed in hospitals cannot consume those patches at the same speed, and in some cases cannot
+consume them at all. That structural mismatch, not the inclusion or exclusion of healthcare from
+the program, is the present-tense reason to harden medical imaging at the file boundary.
 
 The DICOM file itself is the attack surface. The 128-byte preamble can carry an executable header,
 making one file simultaneously a valid scan and a valid executable (CVE-2019-11687 [6]; the ELFDICOM work [7]
@@ -91,8 +112,9 @@ assertion. We measure neutralization by re-running a labeled adversarial corpus 
 of production toolkits and through CDR, apply McNemar's paired test to the discordant cell (an empty
 c-set is a falsification check that came back clean on this corpus), and grow the corpus
 adversarially until it breaks the defense itself. When it did, we report what broke and how we fixed
-it. The methodology is general to any file format with a pre-parse attack surface and a paired
-toolkit matrix; we instantiate it on DICOM.
+it. We instantiate the methodology on DICOM. We conjecture that the same loop applies to any
+file format with a pre-parse attack surface and a paired toolkit matrix; we do not demonstrate
+that here, and Section 8 scopes the claim.
 
 ## 2. Background and related work
 
@@ -237,31 +259,74 @@ generalization by structure and leave the empirical demonstration to future work
 All numbers below are from one command (`python -m bench`) plus the fidelity-at-scale harness
 (`python -m bench.fidelity`), reproduced 2026-05-25.
 
-**Detection.** 80 of 80 tampered files were flagged at the expected severity (Wilson 95% CI 95.4 to
-100 percent).
+We lead with the empirical results that do not depend on our own corpus, then report the
+within-corpus metrics with the caveat they deserve.
+
+**Differentiation.** On the 63 tampered files the toolkits actually executed (excluding
+pre-identified bombs, which are never run raw), DicomLock flagged 51 files that every toolkit
+(pydicom, GDCM, dcmtk) accepted as valid, and 0 files that DicomLock passed as clean were rejected
+by any toolkit. McNemar's paired test gives chi-square 49.0, p < 1e-6. With c = 0 the McNemar test
+degenerates to an exact binomial sign test on the 51 discordant pairs; the probability of 51 of 51
+falling on one side under the null is approximately 2^-51. We report the chi-square and the
+binomial framings together so the result is not mistaken for a more elaborate comparison than it
+is: the substantive content is the 51-of-51 signed comparison, not the chi-square formula. The
+empty discordant cell (no DicomLock blind spots versus the toolkit matrix) is itself a
+falsification check that came back clean. This is the result that does not depend on our own
+corpus.
+
+**Pinned vulnerable codec.** A fuzzer-found malformed JPEG 2000 file drives the pinned OpenJPEG
+2.3.0 + AddressSanitizer build to a fault. CDR neutralizes the malicious DICOM carrier by
+quarantine. A clean image disarms bit-exact. One nuance matters for deployment and we keep it in
+the paper: the static scanner does not flag that file, because its header declares a small image;
+only the sandboxed CDR decode catches the codec-level bomb. This argues for running disarm, not
+scan-only, at a hostile boundary. The fault we reproduced is in the denial-of-service and
+allocation class. We do not claim a reproduced memory-corruption (heap-overflow or use-after-free)
+exploit.
+
+**Falsification as a worked example.** Growing the corpus adversarially and probing the
+implementation at its boundaries surfaced five real defects that a homogeneous corpus had hidden.
+The most serious was a CDR escape: a payload hidden under an allowlisted vendor creator survived
+disarm, because the private-tag override only matched a listed signature at the first byte. A
+control (the same payloads under an unknown creator) confirmed the allowlist itself was correct,
+which isolated the defect. We fixed it with a shared classifier that strips a value carrying a
+signature anywhere in a leading window, or any opaque high-entropy value, even under a known
+creator. The other four were missed installer and archive polyglot signatures (OLE compound files,
+CAB, Zstandard), an unvalidated length bomb in the File Meta group, a moderate-amplification
+decompression bomb that previously produced only a codec-exposure warning, and a private payload
+below an old size floor. All five were fixed with zero new false positives. Fix thresholds were
+grounded in measured real vendor data (61 files, 212 private binary tags, median size 4 bytes,
+maximum entropy 3.75 out of 8), so the high-entropy strip does not fire on legitimate metadata.
+One residual is documented rather than fixed: a low-entropy, signature-less blob under an
+allowlisted creator is preserved by design, because it is indistinguishable from real vendor data.
+We also prototyped and then removed an image-media polyglot tier, because it false-flagged a
+standard test file that carries a benign TIFF header in its preamble.
+
+**Detection and neutralization, framed.** On the labeled corpus, detection is 80 of 80 tampered
+files flagged at the expected severity (Wilson 95 percent CI 95.4 to 100 percent), and
+neutralization is 80 of 80 dangerous inputs made safe by quarantine for the un-rebuildable classes
+(length, dimension, and decompression bombs) and by clean rebuild for the rest (Wilson 95 percent
+CI 95.4 to 100 percent). These numbers are necessary but not sufficient evidence, because the
+corpus is partly of our own construction; a zero-failure result on a self-authored corpus is a
+baseline that the externally validated results above and the falsification round have to backstop.
 
 **False positives.** 0 of 605 benign files were blocked (30 curated plus 575 real CTs). With zero
 events, the one-sided 95% upper bound on the false-positive rate is 0.50 percent. A separate
 mixed-compression corpus of 103 files spanning 12 transfer syntaxes produced 0 false positives on
-conformant files; the 8 files given a blocking verdict were each genuinely non-conformant (no Part-10
-header, truncated, or missing image dimensions). A further 370 real clinical files in three additional
-public datasets (120 brain MR from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and 100 abdomen CT
-from TCGA-KIRC) produced 0 false positives, so across all 945 real clinical files used here (575
-chest CT, 100 abdomen CT, 120 brain MR, 150 chest XR; three modalities and three body regions) the
-scanner blocked none.
+conformant files; the 8 files given a blocking verdict were each genuinely non-conformant (no
+Part-10 header, truncated, or missing image dimensions). A further 370 real clinical files in three
+additional public datasets (120 brain MR from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and
+100 abdomen CT from TCGA-KIRC) produced 0 false positives, so across all 945 real clinical files
+used here (575 chest CT, 100 abdomen CT, 120 brain MR, 150 chest XR; three modalities and three
+body regions) the scanner blocked none.
 
-**Neutralization.** 80 of 80 dangerous inputs were made safe, by quarantine for the un-rebuildable
-classes (length, dimension, and decompression bombs) and by clean rebuild for the rest (Wilson 95% CI
-95.4 to 100 percent).
-
-**Fidelity at scale.** Across a diverse benign corpus plus the real CTs, 623 of 623 files with native
-or lossless sources were rebuilt bit-exact (575 CTs and 48 diverse files), spanning 13 transfer
-syntaxes (Implicit and Explicit VR Little Endian, Explicit VR Big Endian, RLE Lossless, JPEG 2000
-Lossless, JPEG Lossless, JPEG-LS Lossless, and Deflated, among others). 20 of 20 lossy-source files
-had their pixels preserved exactly as decoded. The 370 additional brain MR, chest radiography, and
-abdomen CT files were each rebuilt bit-exact as well, including the JPEG Lossless and JPEG 2000
-Lossless codec paths the chest CT corpus does not contain. There were 0 fidelity breaks across every
-modality and body region tested.
+**Fidelity at scale.** Across a diverse benign corpus plus the real CTs, 623 of 623 files with
+native or lossless sources were rebuilt bit-exact (575 CTs and 48 diverse files), spanning 13
+transfer syntaxes (Implicit and Explicit VR Little Endian, Explicit VR Big Endian, RLE Lossless,
+JPEG 2000 Lossless, JPEG Lossless, JPEG-LS Lossless, and Deflated, among others). 20 of 20
+lossy-source files had their pixels preserved exactly as decoded. The 370 additional brain MR,
+chest radiography, and abdomen CT files were each rebuilt bit-exact as well, including the JPEG
+Lossless and JPEG 2000 Lossless codec paths the chest CT corpus does not contain. There were 0
+fidelity breaks across every modality and body region tested.
 
 **Performance.** Single-threaded on commodity laptop hardware (Python 3.12, macOS arm64), the
 scanner processes 945 real clinical files at 254 files per second and 456 MiB per second
@@ -273,43 +338,14 @@ Lossless) it runs at 63 files per second. A typical 10,000-image PACS day clears
 a minute on one core; the workload is embarrassingly parallel, so a real deployment scales
 linearly. Reproduced with `python -m bench.perf --include-disarm`.
 
-**Differentiation.** On the 63 tampered files the toolkits actually executed (excluding pre-identified
-bombs, which are never run raw), DicomLock flagged 51 files that every toolkit (pydicom, GDCM, dcmtk)
-accepted as valid, and 0 files that DicomLock passed as clean were rejected by any toolkit. McNemar's
-paired test gives chi-square 49.0, p < 1e-6. The empty discordant cell (no DicomLock blind spots) is
-itself a falsification check that came back clean.
-
-**Pinned vulnerable codec.** A fuzzer-found malformed JPEG 2000 file drives the pinned OpenJPEG
-2.3.0 + AddressSanitizer build to a fault. CDR neutralizes the malicious DICOM carrier by quarantine.
-A clean image disarms bit-exact. One nuance matters for deployment and we keep it in the paper: the
-static scanner does not flag that file, because its header declares a small image; only the sandboxed
-CDR decode catches the codec-level bomb. This argues for running disarm, not scan-only, at a hostile
-boundary. The fault we reproduced is in the denial-of-service and allocation class. We do not claim a
-reproduced memory-corruption (heap-overflow or use-after-free) exploit.
-
-**Falsification as a worked example.** Growing the corpus adversarially and probing the implementation
-at its boundaries surfaced five real defects that a homogeneous corpus had hidden. The most serious
-was a CDR escape: a payload hidden under an allowlisted vendor creator survived disarm, because the
-private-tag override only matched a listed signature at the first byte. A control (the same payloads
-under an unknown creator) confirmed the allowlist itself was correct, which isolated the defect. We
-fixed it with a shared classifier that strips a value carrying a signature anywhere in a leading
-window, or any opaque high-entropy value, even under a known creator. The other four were missed
-installer and archive polyglot signatures (OLE compound files, CAB, Zstandard), an unvalidated length
-bomb in the File Meta group, a moderate-amplification decompression bomb that previously produced only
-a codec-exposure warning, and a private payload below an old size floor. All five were fixed with zero
-new false positives. Fix thresholds were grounded in measured real vendor data (61 files, 212 private
-binary tags, median size 4 bytes, maximum entropy 3.75 out of 8), so the high-entropy strip does not
-fire on legitimate metadata. One residual is documented rather than fixed: a low-entropy,
-signature-less blob under an allowlisted creator is preserved by design, because it is
-indistinguishable from real vendor data. We also prototyped and then removed an image-media polyglot
-tier, because it false-flagged a standard test file that carries a benign TIFF header in its preamble.
-
-**Privacy auditing.** As an optional, separate capability, the tool computes an ordinal
-re-identification-risk score (0 to 100) over four channels (residual structured identifiers,
-identifiers in free text and private tags, burned-in pixel text, and facial-geometry
-reconstructability) [18, 19], ranking a clean file at 0 (MINIMAL), a file with residual identifiers at 45
-(MODERATE), and a fully identified file at 100 (HIGH). It is a triage score, not a certification of
-de-identification.
+**Privacy auditing.** We include this audit because the DICOM file is the unit of both attack and
+identity risk: standard tag-level processing addresses neither the parse-surface attack that CDR
+neutralizes nor the pixel-domain residual we measure here. As an optional, separate capability,
+the tool computes an ordinal re-identification-risk score (0 to 100) over four channels (residual
+structured identifiers, identifiers in free text and private tags, burned-in pixel text, and
+facial-geometry reconstructability) [18, 19], ranking a clean file at 0 (MINIMAL), a file with
+residual identifiers at 45 (MODERATE), and a fully identified file at 100 (HIGH). It is a triage
+score, not a certification of de-identification.
 
 Applied to 1,045 public "de-identified" files across five datasets, four modalities, and four body
 regions (575 chest CT, 100 abdomen CT from TCGA-KIRC, 120 brain MR from UPENN-GBM, 150 chest
@@ -483,6 +519,26 @@ primary measurement, it is cited as such in the text.
     (cancerimagingarchive.net/collection/upenn-gbm/), and TCGA-KIRC
     (cancerimagingarchive.net/collection/tcga-kirc/).
 
+**Glasswing expansion (June 2026).**
+
+25. Anthropic. Expanding Project Glasswing. June 2026. (Approximately 150 additional organizations
+    across more than 15 countries, including power, water, healthcare, communications, and hardware
+    among industries that had been under-represented in the initial cohort.)
+    https://www.anthropic.com/news/expanding-project-glasswing. Reported by TechCrunch, CNBC, and
+    Help Net Security, 2 to 3 June 2026.
+
+**Independent CVE attribution.**
+
+26. Garrity P. Tracking CVEs Attributed to Anthropic Researchers and Project Glasswing. VulnCheck
+    Blog, 2026. https://www.vulncheck.com/blog/anthropic-glasswing-cves. (CVE-record review
+    identifies 40 CVEs attributed to Anthropic researchers across the core team, Nicholas Carlini
+    individually, and Calif.io's MADBugs program; 28 affect Firefox, nine wolfSSL, and one each
+    NGINX Plus, FreeBSD, and OpenSSL. CVE-2026-4747 is the only CVE explicitly attributed to
+    Project Glasswing by name as of mid-2026; a public summary report from Anthropic is expected
+    later in 2026.) See also: Greig J. Behind the Mythos hype, Glasswing has just one confirmed
+    CVE. CSO Online, 2026; Claburn T. Anthropic's Project Glasswing CVE count is still guesswork.
+    The Register, 15 April 2026.
+
 ---
 
 ## Appendix A. JAMIA submission format
@@ -531,12 +587,14 @@ imaging and is an addressable defense for systems that are slow to patch.
 
 **Problem.** Hospitals run exactly the software AI-assisted vulnerability discovery now targets
 (DICOM toolkits and image and video codecs), and they patch slowly because of device
-recertification and legacy or embedded equipment. The health sector was explicitly omitted from
-the early-access protection group for one such system in 2026, an omission Health-ISAC publicly
-warned could jeopardize health-sector security. At the same time, current tag-based
-de-identification on public "de-identified" medical imaging leaves facial geometry and burned-in
-pixel text in place, channels that recent work has shown can re-identify research participants
-with up to 98 percent accuracy.
+recertification and legacy or embedded equipment. The health sector was initially omitted from
+the Glasswing early-access protection group in April 2026, an omission Health-ISAC publicly
+warned could jeopardize health-sector security; Anthropic added healthcare among other industries
+in a June 2026 expansion of the program, but the expansion accelerates patching at the source
+rather than altering the hospital install base that the patch loop cannot reach. At the same
+time, current tag-based de-identification on public "de-identified" medical imaging leaves facial
+geometry and burned-in pixel text in place, channels that recent work has shown can re-identify
+research participants with up to 98 percent accuracy.
 
 **What is already known.** Commercial DICOM CDR products exist (OPSWAT MetaDefender added DICOM
 support in 2024, Votiro markets DICOM file disarm), and academic transcoding-based image sanitizers
