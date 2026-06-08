@@ -39,10 +39,11 @@ defect in our own CDR, in which a payload hidden under an allowlisted vendor cre
 disarm; we publish what broke and how we fixed it as a worked example of the methodology. On the
 self-authored corpus, detection is 80 of 80 and neutralization is 80 of 80; these are necessary
 but not sufficient evidence, because the corpus is partly of our own construction. False
-positives are 0 across 605 benign files (575 real clinical CTs plus 30 curated) and across 370
-further real clinical files in three additional body regions and modalities (100 abdomen CT, 120
-brain MR, 150 chest radiographs); CDR rebuilds every native and lossless file bit-exact (623 in
-the fidelity harness plus the 370 additional files) across 13 transfer syntaxes. Single-threaded
+positives are 0 across all 1,045 real clinical files in four modalities and five datasets (575
+chest CT, 100 abdomen CT, 120 brain MR, 150 chest XR, 100 mammograms; one-sided 95 percent upper
+bound 0.29 percent on the clinical pool, 0.26 percent pooled across all 1,170 benign files); CDR
+rebuilds every native and lossless file bit-exact (623 in the fidelity harness plus the 470
+additional files) across 13 transfer syntaxes. Single-threaded
 on commodity hardware, the scanner runs at 254 files per second across the 945-file corpus (peak
 265 MiB), and the CDR rebuild runs at 63 to 174 files per second depending on whether the codec
 sandbox is invoked. As a secondary contribution, we audit
@@ -265,7 +266,12 @@ within-corpus metrics with the caveat they deserve.
 **Differentiation.** On the 63 tampered files the toolkits actually executed (excluding
 pre-identified bombs, which are never run raw), DicomLock flagged 51 files that every toolkit
 (pydicom, GDCM, dcmtk) accepted as valid, and 0 files that DicomLock passed as clean were rejected
-by any toolkit. McNemar's paired test gives chi-square 49.0, p < 1e-6. With c = 0 the McNemar test
+by any toolkit. We are precise about what "accepted" means here. Each toolkit is behaving correctly
+as a DICOM parser: the preamble is reserved bytes a spec-compliant parser is supposed to ignore,
+the data set parses, and lengths and tags resolve. The point is not that the parsers are defective.
+It is that correct parsing is not sanitization: the weaponized file passes through intact, and the
+payload survives to the next consumer (a codec, an OS loader, a viewer). That is the gap CDR is
+designed to close. McNemar's paired test on the discordant cell gives chi-square 49.0, p < 1e-6. With c = 0 the McNemar test
 degenerates to an exact binomial sign test on the 51 discordant pairs; the probability of 51 of 51
 falling on one side under the null is approximately 2^-51. We report the chi-square and the
 binomial framings together so the result is not mistaken for a more elaborate comparison than it
@@ -309,15 +315,16 @@ CI 95.4 to 100 percent). These numbers are necessary but not sufficient evidence
 corpus is partly of our own construction; a zero-failure result on a self-authored corpus is a
 baseline that the externally validated results above and the falsification round have to backstop.
 
-**False positives.** 0 of 605 benign files were blocked (30 curated plus 575 real CTs). With zero
-events, the one-sided 95% upper bound on the false-positive rate is 0.50 percent. A separate
-mixed-compression corpus of 103 files spanning 12 transfer syntaxes produced 0 false positives on
-conformant files; the 8 files given a blocking verdict were each genuinely non-conformant (no
-Part-10 header, truncated, or missing image dimensions). A further 370 real clinical files in three
-additional public datasets (120 brain MR from UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and
-100 abdomen CT from TCGA-KIRC) produced 0 false positives, so across all 945 real clinical files
-used here (575 chest CT, 100 abdomen CT, 120 brain MR, 150 chest XR; three modalities and three
-body regions) the scanner blocked none.
+**False positives.** No real clinical file was blocked. Across all 1,045 real clinical files in
+four modalities and five datasets (575 chest CT, 100 abdomen CT from TCGA-KIRC, 120 brain MR from
+UPENN-GBM, 150 chest radiographs from LIDC-IDRI, and 100 mammograms from CBIS-DDSM), with zero
+events, the one-sided 95 percent upper bound on the false-positive rate (rule of three) is 0.29
+percent. Pooling with the 30 curated benign files used as part of the toolkit-crash matrix and the
+95 conformant files in the mixed-compression corpus (the remaining 8 of 103 are each genuinely
+non-conformant: no Part-10 header, truncated, or missing image dimensions) gives 0 of 1,170 across
+every benign population in the evaluation, for an aggregate upper bound of 0.26 percent. We report
+the clinical-only bound and the aggregate side by side so a reader who prefers either framing has
+it.
 
 **Fidelity at scale.** Across a diverse benign corpus plus the real CTs, 623 of 623 files with
 native or lossless sources were rebuilt bit-exact (575 CTs and 48 diverse files), spanning 13
@@ -337,6 +344,23 @@ per second, and on a mixed-codec brain MR corpus (a small fraction JPEG Lossless
 Lossless) it runs at 63 files per second. A typical 10,000-image PACS day clears scanning in under
 a minute on one core; the workload is embarrassingly parallel, so a real deployment scales
 linearly. Reproduced with `python -m bench.perf --include-disarm`.
+
+**Storage and bandwidth cost.** Transcoding compressed pixel data to native uncompressed
+neutralizes the codec attack surface but inflates the file. We measured directly on 500 real
+public files (100 each from chest CT, abdomen CT, brain MR, chest radiography, and mammography).
+On the four corpora whose dominant transfer syntax is already native (chest CT 1.00x, abdomen CT
+1.00x, chest XR 1.00x, mammography 1.00x at the file level), CDR adds no measurable storage cost:
+zeroing the preamble and filtering private tags shifts bytes, not pixels. On the brain MR corpus,
+which contains a fraction of JPEG 2000 Lossless encapsulated files, the aggregate ratio is 1.09x
+and the individual transcoded files grow by roughly the codec's lossless compression ratio.
+Structurally, the inflation when CDR transcodes is the source codec's compression ratio:
+typically 2x to 4x for lossless codecs (JPEG 2000 Lossless, JPEG Lossless, JPEG-LS Lossless, RLE)
+and 5x to 10x for lossy codecs. We position disarm as an ingestion-boundary transform: the
+disarmed file is the path of record for downstream processing; the original source can be
+retained for forensics or discarded per policy, separately from the clean copy the PACS, viewer,
+or AI pipeline consumes. A deployment that ingests already-native imaging pays nothing for CDR's
+storage; a deployment that ingests compressed imaging pays the lossless decompression ratio. The
+ratios in this paragraph are measured with the helper script reproduced in REPRODUCE.md.
 
 **Privacy auditing.** We include this audit because the DICOM file is the unit of both attack and
 identity risk: standard tag-level processing addresses neither the parse-surface attack that CDR
@@ -393,9 +417,9 @@ this work. The artifact's value lies in being open source, self-hosted, auditabl
 not in the concept of file-level CDR. The contribution that does not have a clear precedent is the
 evaluation methodology in Section 5: a paired matrix-versus-CDR loop with McNemar on the discordant
 cell, an adversarial generator that keeps growing the corpus until it produces a defeat, and the
-defeat published as part of the paper rather than hidden. We expect the same loop, applied to PDF or
-to an image-container format, to surface the same kind of self-discovered defect we report here for
-DICOM.
+defeat published as part of the paper rather than hidden. We conjecture that the same loop, applied to PDF or to an image-container
+format, would surface the same kind of self-discovered defect; we do not demonstrate that here,
+consistent with the conjecture framing used in the abstract and Section 1.
 
 ## 8. Limitations and threats to validity
 
@@ -561,15 +585,15 @@ anonymization leaves in the pixel domain.
 **Materials and Methods.** We built DicomLock, an open-source self-hosted scanner and CDR engine
 (`pip install dicomlock`, Apache-2.0). A benchmark engine runs a labeled corpus of inert tampered
 files through three production toolkits (pydicom, GDCM, dcmtk) and through CDR, and grows the
-corpus adversarially. The false-positive and fidelity evaluation uses 945 real clinical files
-across four public TCIA collections (LIDC-IDRI / NSCLC-Radiomics / TCGA-LUAD / COVID-19-AR chest
-CT, TCGA-KIRC abdomen CT, UPENN-GBM brain MR, LIDC-IDRI chest radiography) spanning 3 modalities
-and 3 body regions. A residual re-identification audit pairs DicomLock's ordinal score with a
-standard tag anonymizer (dicognito 0.19) on those files plus 100 mammograms from CBIS-DDSM, for a
-1,045-file re-identification audit corpus spanning 4 modalities and 4 body regions.
+corpus adversarially. The false-positive and fidelity evaluation uses 1,045 real clinical files
+across five public TCIA collections (LIDC-IDRI / NSCLC-Radiomics / TCGA-LUAD / COVID-19-AR chest
+CT, TCGA-KIRC abdomen CT, UPENN-GBM brain MR, LIDC-IDRI chest radiography, CBIS-DDSM mammography)
+spanning 4 modalities and 4 body regions. A residual re-identification audit pairs DicomLock's
+ordinal score with a standard tag anonymizer (dicognito 0.19) on the same files.
 
-**Results.** 80 of 80 tampered files detected, 80 of 80 neutralized, 0 false positives across 945
-real benign files plus 30 curated (one-sided 95% upper bound 0.50%), CDR rebuilds bit-exact on
+**Results.** 80 of 80 tampered files detected, 80 of 80 neutralized, 0 false positives across
+1,045 real clinical files plus 30 curated (one-sided 95% upper bound 0.29% on the clinical pool,
+0.26% pooled across all 1,170 benign files), CDR rebuilds bit-exact on
 every native and lossless source across 13 transfer syntaxes (623 of 623). DicomLock flagged 51
 files every reference toolkit accepted as valid, with 0 discordant cases against any toolkit
 (McNemar chi-square 49.0, p < 1e-6). The audit found pixel-domain re-identification risk that tag
