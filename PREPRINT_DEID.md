@@ -2,7 +2,7 @@
 
 **Draft preprint. Status: working draft, results reproduced 2026-05-26.**
 
-Authors: Vijay Thakore. Correspondence: hello@dicomlock.com.
+Authors: Vijay Thakore. Correspondence: vthakore@uchicago.edu.
 
 Artifact: open source (Apache-2.0) at github.com/vthakore23/dicomlock; package `pip install dicomlock`.
 
