@@ -330,15 +330,19 @@ it.
 native or lossless sources were rebuilt bit-exact (575 CTs and 48 diverse files), spanning 13
 transfer syntaxes (Implicit and Explicit VR Little Endian, Explicit VR Big Endian, RLE Lossless,
 JPEG 2000 Lossless, JPEG Lossless, JPEG-LS Lossless, and Deflated, among others). 20 of 20
-lossy-source files had their pixels preserved exactly as decoded. The 370 additional brain MR,
-chest radiography, and abdomen CT files were each rebuilt bit-exact as well, including the JPEG
-Lossless and JPEG 2000 Lossless codec paths the chest CT corpus does not contain. There were 0
-fidelity breaks across every modality and body region tested.
+lossy-source files had their pixels preserved exactly as decoded. The 470 additional brain MR,
+chest radiography, abdomen CT, and mammography files were each rebuilt bit-exact as well,
+including the JPEG Lossless and JPEG 2000 Lossless codec paths the chest CT corpus does not
+contain. The 100 CBIS-DDSM mammograms are stored Implicit VR Little Endian (native), so they
+fall in the native and lossless bit-exact bucket rather than the lossy preserved-as-decoded
+bucket. There were 0 fidelity breaks across every modality and body region tested.
 
 **Performance.** Single-threaded on commodity laptop hardware (Python 3.12, macOS arm64), the
 scanner processes 945 real clinical files at 254 files per second and 456 MiB per second
 (per-file median 2 to 10 milliseconds depending on file size, p95 4 to 21 milliseconds), with a
-peak resident memory of 265 MiB. The CDR rebuild adds the cost of the sandboxed codec subprocess
+peak resident memory of 265 MiB. The performance corpus is the 945-file subset on which the
+performance benchmark was first run; the 100 CBIS-DDSM mammograms were added to the false-positive
+and fidelity evaluation after that run and are not re-measured here. The CDR rebuild adds the cost of the sandboxed codec subprocess
 on encapsulated transfer syntaxes: on a native chest CT corpus the disarm path runs at 174 files
 per second, and on a mixed-codec brain MR corpus (a small fraction JPEG Lossless and JPEG 2000
 Lossless) it runs at 63 files per second. A typical 10,000-image PACS day clears scanning in under
@@ -398,8 +402,9 @@ artifact.
 
 The results support the narrow claim we set out to test: rebuilding a DICOM file from a validated
 canonical form neutralizes the modeled file and codec attack classes while preserving native and
-lossless images bit-exact, with a false-positive rate whose 95% upper bound is below one percent on
-605 benign files. The differentiation result quantifies the gap the tool fills: three mature toolkits
+lossless images bit-exact, with a false-positive rate whose 95% upper bound is below one third of
+one percent on the 1,045-file clinical pool (0.29 percent by the rule of three; 0.26 percent
+pooled across all 1,170 benign files in the evaluation). The differentiation result quantifies the gap the tool fills: three mature toolkits
 accept dozens of weaponized files as valid that DicomLock flags, and the tool introduces no blind
 spot relative to those toolkits on this corpus.
 
