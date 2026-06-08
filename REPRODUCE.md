@@ -57,16 +57,18 @@ on public collections from The Cancer Imaging Archive, which you fetch yourself.
 python download_tcia.py --ct 500 --xr 150                                                # chest CT and chest radiography
 python download_tcia.py --collection UPENN-GBM --modality MR --count 120                 # brain MR
 python download_tcia.py --collection TCGA-KIRC --modality CT --count 100 --output-name tcia_ct_abdomen  # abdomen CT
+python download_tcia.py --collection CBIS-DDSM --modality MG --count 100 --output-name tcia_mg_cbis_ddsm  # mammography
 ```
 
-Files land in `data/tcia_ct/`, `data/tcia_xr/`, `data/tcia_mr/`, and `data/tcia_ct_abdomen/` (all
-gitignored). Then:
+Files land in `data/tcia_ct/`, `data/tcia_xr/`, `data/tcia_mr/`, `data/tcia_ct_abdomen/`, and
+`data/tcia_mg_cbis_ddsm/` (all gitignored). Then:
 
 ```bash
 python -m bench                                                              # the false-positive scale pass picks up data/tcia_ct automatically
 python -m bench.fidelity                                                     # bit-exact rebuilds across the CTs and bundled diverse test data
 python -m bench.diverse_check --dir data/tcia_ct_abdomen                     # false positives + fidelity over the diverse modalities you pulled
 python -m bench.reid_audit --dir data/tcia_ct_abdomen --label "CT (abdomen, TCGA-KIRC)"  # residual re-identification risk
+python -m bench.reid_audit --dir data/tcia_mg_cbis_ddsm --label "Mammography (CBIS-DDSM)"  # MG row of the 1,045-file de-id audit
 ```
 
 Counts vary slightly run to run because TCIA series selection is sampled, so treat the published

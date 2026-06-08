@@ -1,4 +1,4 @@
-# Content Disarm and Reconstruction as a Pre-Parse Defense for the DICOM File Attack Surface
+# Content Disarm and Reconstruction as a Pre-Parse Defense for the DICOM File Attack Surface: A Differential-Evaluation Methodology
 
 **Draft preprint. Status: working draft, results reproduced 2026-05-25.**
 
@@ -20,9 +20,12 @@ an open-source, self-hosted tool that scans DICOM files for the ways they can be
 disarms recoverable files through Content Disarm and Reconstruction (CDR): it zeroes the preamble,
 transcodes compressed pixel data off the vulnerable codec in a resource-limited sandbox, filters
 private tags against a default-deny vendor allowlist, and re-scans the rebuilt file, quarantining
-anything still dangerous. We evaluate it with a benchmark engine that runs a labeled corpus of inert
-attacks through both a matrix of three production DICOM toolkits and through CDR, and that grows the
-corpus adversarially to try to break the defense. On the current corpus DicomLock detects 80 of 80
+anything still dangerous. Alongside the artifact, we contribute the differential-evaluation
+methodology used to evaluate it: a labeled corpus of inert attacks is run through both a matrix of
+three production DICOM toolkits and through CDR, McNemar's paired test is applied to the discordant
+cell, and the corpus is grown adversarially until it breaks the defense itself. The methodology is
+general to file-format CDR; we instantiate it on DICOM and publish the falsification report it
+produced, including a defect we found in our own engine. On the current corpus DicomLock detects 80 of 80
 tampered files, produces 0 false positives across 605 benign files (575 real clinical CTs plus 30
 curated) and across 370 further real clinical files in three additional body regions and modalities
 (100 abdomen CT, 120 brain MR, 150 chest radiographs), neutralizes 80 of 80 dangerous inputs,
@@ -34,9 +37,10 @@ DicomLock flags 51 files that every toolkit accepts as valid, and no file it pas
 rejected by a toolkit (McNemar chi-square 49.0, p < 1e-6). The adversarial round found and fixed a
 real defect in our own CDR, in which a payload hidden under an allowlisted vendor creator survived
 disarm; we report it as a worked example of the method. As a secondary contribution, we audit
-residual re-identification risk across 945 public "de-identified" files and find substantial
-pixel-domain risk (facial-geometry features on 96.7 percent of head MR, burned-in text on 89.3
-percent of chest radiographs) that current tag anonymization is structurally unable to fix.
+residual re-identification risk across 1,045 public "de-identified" files across five datasets
+and find substantial pixel-domain risk (facial-geometry features on 96.7 percent of head MR,
+burned-in text on 89.3 percent of chest radiographs and 52.0 percent of mammograms) that
+current tag anonymization is structurally unable to fix.
 DicomLock is positioned as a compensating control for the systems an automated patch loop cannot
 reach, not as a replacement for patching.
 
@@ -79,6 +83,16 @@ legacy and embedded devices and software locked behind recertification. Because 
 from a validated canonical form rather than detecting a specific exploit, it can neutralize unknown
 defects, which is the property that survives a fast, capable adversary. This paper tests whether that
 property holds in practice, and at what cost to diagnostic fidelity and to false positives.
+
+The contribution of this paper is two-fold. The first is the artifact (DicomLock), released as open
+source so any reader can run it, audit it, and reproduce every number we report. The second is the
+differential-evaluation methodology used to evaluate it: most commercial CDR is evaluated by
+assertion. We measure neutralization by re-running a labeled adversarial corpus through both a matrix
+of production toolkits and through CDR, apply McNemar's paired test to the discordant cell (an empty
+c-set is a falsification check that came back clean on this corpus), and grow the corpus
+adversarially until it breaks the defense itself. When it did, we report what broke and how we fixed
+it. The methodology is general to any file format with a pre-parse attack surface and a paired
+toolkit matrix; we instantiate it on DICOM.
 
 ## 2. Background and related work
 
@@ -202,6 +216,22 @@ accept). We report Wilson 95% confidence intervals for proportions, a one-sided 
 rule of three) for the zero-event false-positive rate, and McNemar's paired test comparing DicomLock
 to the toolkit matrix. All statistics are computed without external numerical dependencies.
 
+**The methodology, as a reusable protocol.** The procedure above describes how we evaluate
+DicomLock; the structure is general. It has four moving parts: a labeled, inert adversarial corpus
+that targets a defined attack surface; a matrix of mature production parsers or decoders for the
+file format, run in resource-limited subprocesses; a CDR engine that rebuilds a clean canonical file;
+and a re-evaluation pass that runs the matrix on the disarmed output. The headline metric is
+McNemar's paired test on the discordant cell (the matrix accepts a file the CDR flags, and the
+reverse); an empty c-cell is a falsification check that the CDR has no blind spot against the matrix.
+To prevent the corpus from being too easy on the defense, an adversarial generator targets the
+implementation's weak points (boundary probes, signature variants, payloads under allowlisted
+private creators, chained attacks, benign edge cases) until the loop produces a CDR defeat, at which
+point the defeat is fixed, regression-guarded, and published. We instantiate this protocol on DICOM;
+no step is DICOM-specific. The natural next instantiations are PDF, Office-document, and image
+container CDR, each of which has its own paired toolkit matrix and its own pre-parse attack surface.
+We do not demonstrate the protocol empirically on a second file format here; we argue its
+generalization by structure and leave the empirical demonstration to future work.
+
 ## 6. Results
 
 All numbers below are from one command (`python -m bench`) plus the fidelity-at-scale harness
@@ -281,17 +311,21 @@ reconstructability) [18, 19], ranking a clean file at 0 (MINIMAL), a file with r
 (MODERATE), and a fully identified file at 100 (HIGH). It is a triage score, not a certification of
 de-identification.
 
-Applied to 945 public "de-identified" files across four datasets, three modalities, and three body
-regions (575 chest CT, 100 abdomen CT from TCGA-KIRC, 120 brain MR from UPENN-GBM, and 150 chest
-radiographs from LIDC-IDRI), the audit finds substantial pixel-domain residual risk that no tag
-anonymizer can fix, and the risk varies systematically by modality and anatomical region.
-Facial-geometry risk fires on 96.7 percent of the head MR (the Mayo concern [18, 19]) and below one
-percent on every non-head dataset (0.3 percent on chest CT, 0.0 percent on chest XR and abdomen CT),
-sanity-confirming that the channel is anatomically gated rather than spuriously high. Burned-in pixel text fires on 89.3 percent of the chest radiographs, 22.5
-percent of the brain MR, 17.0 percent of the abdomen CT, and 8.0 percent of the chest CT. The factor
-of two difference in burned-in rate between abdomen CT and chest CT, on otherwise comparable scanners
-and the same modality, is a finding in itself: pixel-domain re-identification risk is not a property
-of modality alone but of scanner protocol per body region. A paired comparison against a standard
+Applied to 1,045 public "de-identified" files across five datasets, four modalities, and four body
+regions (575 chest CT, 100 abdomen CT from TCGA-KIRC, 120 brain MR from UPENN-GBM, 150 chest
+radiographs from LIDC-IDRI, and 100 mammograms from CBIS-DDSM), the audit finds substantial
+pixel-domain residual risk that no tag anonymizer can fix, and the risk varies systematically by
+modality and anatomical region. Facial-geometry risk fires on 96.7 percent of the head MR (the Mayo
+concern [18, 19]) and below one percent on every non-head dataset (0.3 percent on chest CT, 0.0
+percent on chest XR, abdomen CT, and mammography), sanity-confirming that the channel is
+anatomically gated rather than spuriously high. Burned-in pixel text fires on 89.3 percent of the
+chest radiographs, 52.0 percent of the mammograms, 22.5 percent of the brain MR, 17.0 percent of the
+abdomen CT, and 8.0 percent of the chest CT. The factor of two difference in burned-in rate between
+abdomen CT and chest CT, on otherwise comparable scanners and the same modality, is a finding in
+itself: pixel-domain re-identification risk is not a property of modality alone but of scanner
+protocol per body region. Across modalities the rate spans more than an order of magnitude (8 to 89
+percent), with mammography at 52 percent in between, so no body-region-level policy alone is
+sufficient either. A paired comparison against a standard
 tag anonymizer (dicognito 0.19) on 60 of the brain MR confirmed the gap: the anonymizer changed every
 direct identifier (120 of 120, tag linkage broken) but left the pixel data byte-identical (60 of 60),
 so the pixel-domain channels reported above are provably unchanged by current tag-based anonymization.
@@ -317,6 +351,16 @@ benchmark that only ever reports success on an easy corpus is not evidence; we t
 result as something to distrust until the corpus is hard enough to break the tool, and we ship the
 generator that does the breaking.
 
+A note on what the paper actually contributes. The DicomLock artifact is one of several CDR systems
+for DICOM; commercial DICOM CDR exists and academic transcoding-based image sanitization predates
+this work. The artifact's value lies in being open source, self-hosted, auditable, and PACS-depth,
+not in the concept of file-level CDR. The contribution that does not have a clear precedent is the
+evaluation methodology in Section 5: a paired matrix-versus-CDR loop with McNemar on the discordant
+cell, an adversarial generator that keeps growing the corpus until it produces a defeat, and the
+defeat published as part of the paper rather than hidden. We expect the same loop, applied to PDF or
+to an image-container format, to surface the same kind of self-discovered defect we report here for
+DICOM.
+
 ## 8. Limitations and threats to validity
 
 The threat is demonstrated through proofs of concept and CVEs rather than documented in the wild
@@ -331,7 +375,10 @@ quarantined or preserved-as-decoded, not recovered bit-exact. The benchmark corp
 adversarial and diverse, is finite and under-counts the true attack surface. The codec-CVE and
 vendor-allowlist data files are illustrative seeds and should be verified against authoritative
 sources before any vendor-facing claim. Commercial and academic CDR exist, so the contribution is
-openness, auditability, the paired methodology, and PACS-depth, not the concept of CDR.
+openness, auditability, the paired methodology, and PACS-depth, not the concept of CDR. The claim
+that the methodology generalizes beyond DICOM is structural, not empirical: each step is independent
+of any DICOM-specific detail and other file formats have analogous toolkit matrices and pre-parse
+attack surfaces, but we have not instantiated the loop on a second format in this work.
 
 ## 9. Responsible disclosure and ethics
 
@@ -462,16 +509,17 @@ corpus adversarially. The false-positive and fidelity evaluation uses 945 real c
 across four public TCIA collections (LIDC-IDRI / NSCLC-Radiomics / TCGA-LUAD / COVID-19-AR chest
 CT, TCGA-KIRC abdomen CT, UPENN-GBM brain MR, LIDC-IDRI chest radiography) spanning 3 modalities
 and 3 body regions. A residual re-identification audit pairs DicomLock's ordinal score with a
-standard tag anonymizer (dicognito 0.19) on the same files.
+standard tag anonymizer (dicognito 0.19) on those files plus 100 mammograms from CBIS-DDSM, for a
+1,045-file re-identification audit corpus spanning 4 modalities and 4 body regions.
 
 **Results.** 80 of 80 tampered files detected, 80 of 80 neutralized, 0 false positives across 945
 real benign files plus 30 curated (one-sided 95% upper bound 0.50%), CDR rebuilds bit-exact on
 every native and lossless source across 13 transfer syntaxes (623 of 623). DicomLock flagged 51
 files every reference toolkit accepted as valid, with 0 discordant cases against any toolkit
 (McNemar chi-square 49.0, p < 1e-6). The audit found pixel-domain re-identification risk that tag
-anonymization cannot remove: facial-geometry features on 96.7% of brain MR, burned-in pixel text
-on 89.3% of chest radiographs and 17.0% of abdomen CT versus 8.0% on chest CT (same modality,
-different body region).
+anonymization cannot remove: facial-geometry features on 96.7% of brain MR, and burned-in pixel
+text on 89.3% of chest radiographs, 52.0% of mammograms, 22.5% of brain MR, 17.0% of abdomen CT,
+and 8.0% of chest CT (scanner protocol per body region, not modality alone).
 
 **Discussion.** CDR is a compensating control for the systems an automated patch loop cannot
 reach, not a replacement for patching, and tag-only anonymization is not re-identification safety.
@@ -498,9 +546,9 @@ No current standard mandates DICOM file sanitization.
 **What this study adds.** A reproducible, open-source artifact that scans and disarms DICOM files
 at PACS depth, evaluated as a paired methodology rather than asserted, with the bench engine,
 adversarial generator, fidelity-at-scale harness, and pinned vulnerable codec all released. An
-empirical residual re-identification finding across 945 public files showing that the pixel-domain
-risk standard tag anonymization cannot fix is large and varies by anatomical region, not modality
-alone. A self-discovered and transparently fixed defect in our own CDR is reported as a worked
+empirical residual re-identification finding across 1,045 public files showing that the
+pixel-domain risk standard tag anonymization cannot fix is large and varies by both anatomical
+region within a modality and across modalities. A self-discovered and transparently fixed defect in our own CDR is reported as a worked
 example of the falsification methodology.
 
 ### Data and code availability

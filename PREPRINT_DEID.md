@@ -1,4 +1,4 @@
-# Tag Anonymization Is Not Re-identification Safety: A 945-File Audit of Pixel-Domain Residual Risk in Public DICOM Imaging
+# Tag Anonymization Is Not Re-identification Safety: A 1,045-File Audit of Pixel-Domain Residual Risk in Public DICOM Imaging
 
 **Draft preprint. Status: working draft, results reproduced 2026-05-26.**
 
@@ -23,24 +23,27 @@ open-source tag anonymizer cannot remove this residual.
 includes an ordinal re-identification-risk score (0 to 100) over four channels: residual
 structured identifiers (DICOM PS3.15 Basic Confidentiality Profile tags still populated),
 identifiers in free text and private tags, burned-in pixel text, and facial-geometry
-reconstructability for head CT or MR. We audited 945 real public files from four collections in
-The Cancer Imaging Archive (TCIA), covering three modalities and three body regions: 575 chest
+reconstructability for head CT or MR. We audited 1,045 real public files from five collections in
+The Cancer Imaging Archive (TCIA), covering four modalities and four body regions: 575 chest
 CT (LIDC-IDRI, NSCLC-Radiomics, TCGA-LUAD, COVID-19-AR), 100 abdomen CT (TCGA-KIRC), 120 brain
-MR (UPENN-GBM), and 150 chest radiographs (LIDC-IDRI CR/DX). On 60 of the brain MR we
+MR (UPENN-GBM), 150 chest radiographs (LIDC-IDRI CR/DX), and 100 mammograms (CBIS-DDSM). On 60 of the brain MR we
 additionally ran a paired comparison against dicognito 0.19, a widely used open-source DICOM tag
 anonymizer, hashing the pixel data before and after to verify that the anonymizer cannot touch
 the pixel-domain channels by construction.
 
-**Results.** Across the 945 files, the audit found substantial pixel-domain residual risk that no
+**Results.** Across the 1,045 files, the audit found substantial pixel-domain residual risk that no
 tag anonymizer can fix and that varies systematically by modality and anatomical region.
 Facial-geometry features fired on 96.7 percent of brain MR (the Mayo concern [2, 3]) and below
-one percent on every non-head dataset (0.3 percent on chest CT, 0.0 percent on chest XR and
-abdomen CT), sanity-confirming that the channel is anatomically gated rather than spuriously
-high. Burned-in pixel text fired on 89.3 percent of the chest radiographs, 22.5 percent of the
-brain MR, 17.0 percent of the abdomen CT, and 8.0 percent of the chest CT. The factor-of-two
-difference in burned-in rate between abdomen CT and chest CT, on the same modality and
-comparable scanner mix, is a finding in itself: pixel-domain re-identification risk is gated by
-scanner protocol per body region, not by modality alone. The paired comparison confirmed the
+one percent on every non-head dataset (0.3 percent on chest CT, 0.0 percent on chest XR,
+abdomen CT, and mammography), sanity-confirming that the channel is anatomically gated rather
+than spuriously high. Burned-in pixel text fired on 89.3 percent of the chest radiographs, 52.0
+percent of the mammograms, 22.5 percent of the brain MR, 17.0 percent of the abdomen CT, and
+8.0 percent of the chest CT. Two body-region findings follow. Within a single modality the
+factor-of-two difference between abdomen and chest CT (17.0 versus 8.0 percent), on comparable
+scanners, shows that pixel-domain re-identification risk is gated by scanner protocol per body
+region, not by modality alone. Across modalities the rate spans more than an order of magnitude
+(8 to 89 percent), with mammography at 52 percent sitting between radiography and CT or MR; no
+policy keyed only to modality or only to body region is sufficient. The paired comparison confirmed the
 gap: dicognito changed every populated direct identifier (120 of 120, tag linkage to the real
 record broken) but left the pixel data byte-identical on every file (60 of 60), so all four
 pixel-domain channels we report are provably unchanged by current tag-based anonymization.
@@ -184,10 +187,11 @@ All data is public, already-de-identified, and obtained from The Cancer Imaging 
 [7] through its NBIA REST API with no authentication. The chest CT corpus (575 files) was
 sampled across four collections: LIDC-IDRI [9], NSCLC-Radiomics [10], TCGA-LUAD [11], and
 COVID-19-AR [12]. The abdomen CT corpus (100 files) is TCGA-KIRC [13]; the brain MR corpus (120
-files) is UPENN-GBM [14]; the chest radiography corpus (150 files) is LIDC-IDRI CR/DX [9]. All
-collections are released under TCIA's standard data-use terms. The total audit corpus is 945
-files across four collections, three modalities (CT, MR, CR/DX), and three body regions (chest,
-abdomen, head). No PHI was obtained, transmitted, or stored beyond what TCIA itself publishes.
+files) is UPENN-GBM [14]; the chest radiography corpus (150 files) is LIDC-IDRI CR/DX [9]; the
+mammography corpus (100 files) is CBIS-DDSM [15]. All collections are released under TCIA's
+standard data-use terms. The total audit corpus is 1,045 files across five collections, four
+modalities (CT, MR, CR/DX, MG), and four body regions (chest, abdomen, head, breast). No PHI
+was obtained, transmitted, or stored beyond what TCIA itself publishes.
 
 ## 5. Results
 
@@ -197,7 +201,7 @@ in the released artifact. Score channels are reported as the prevalence (percent
 which the channel fires) and the mean points contributed; the mean total score per dataset is
 also reported.
 
-### 5.1 The 945-file audit
+### 5.1 The 1,045-file audit
 
 | Dataset | N | Mean score | HIGH | Face | Burned-in |
 |---|---:|---:|---:|---:|---:|
@@ -205,27 +209,34 @@ also reported.
 | Abdomen CT (TCGA-KIRC) | 100 | 58.1 | 17.0% | 0.0% | 17.0% |
 | Brain MR (UPENN-GBM) | 120 | 79.2 | 96.7% | 96.7% | 22.5% |
 | Chest XR / CR/DX (LIDC-IDRI) | 150 | 55.7 | 38.7% | 0.0% | 89.3% |
+| Mammography (CBIS-DDSM) | 100 | 60.5 | 50.0% | 0.0% | 52.0% |
 
 Four observations follow directly from the table.
 
 First, the facial-geometry channel is anatomically gated. It fires on 96.7 percent of the brain
 MR and below one percent on every non-head dataset (0.3 percent on chest CT, 0.0 percent on
-chest XR and abdomen CT). The 96.7 percent figure is consistent with the head-MR risk that the
+chest XR, abdomen CT, and mammography). The 96.7 percent figure is consistent with the head-MR risk that the
 2019 NEJM [2] and 2025 Mayo and Carnegie Mellon [3] results have repeatedly demonstrated. The
 near-zero rate on every non-head dataset is a sanity check: the channel reports what it should
 report.
 
 Second, the burned-in pixel-text channel is operationally distributed in a way that the standard
 de-identification literature underweights. It fires on 89.3 percent of the chest radiographs in
-the corpus, which is the expected dominant overlay rate for CR/DX. It also fires on 22.5 percent
-of the brain MR and on 17.0 percent of the abdomen CT, both rates that a release pipeline cannot
-ignore. The chest CT rate of 8.0 percent is the lowest in the corpus but is not zero.
+the corpus, which is the expected dominant overlay rate for CR/DX. It also fires on 52.0 percent
+of the mammograms, on 22.5 percent of the brain MR, and on 17.0 percent of the abdomen CT, all
+rates that a release pipeline cannot ignore. The chest CT rate of 8.0 percent is the lowest in
+the corpus but is not zero.
 
 Third, the modality alone does not predict the pixel-domain residual. The 8.0 percent burned-in
 rate on chest CT compared with 17.0 percent on abdomen CT, both modality CT and both publicly
 released under TCIA standard de-identification, shows that pixel-domain residual risk is gated
 by scanner protocol and body region rather than by modality category. The factor-of-two gap
-across body regions of the same modality is the publishable signal of this section.
+across body regions of the same modality is the publishable signal of this section. Adding
+mammography (52.0 percent burn-in, breast as a new body region and MG as a new modality)
+extends the same finding across modalities: the burned-in rate now spans more than an order of
+magnitude in the corpus (8 percent on chest CT to 89 percent on chest radiography, with
+mammography at 52 percent and brain MR at 22.5 percent in between). No policy keyed only to
+modality is sufficient.
 
 Fourth, the tag-domain channels (structured identifiers and free text or private tags) fire on
 essentially every file in every dataset. That is a structural floor of the ordinal score, not an
@@ -233,10 +244,11 @@ indication of undetected direct PHI: TCIA pseudonymizes rather than empties tags
 counts populated identifier tags as residual risk. We report that floor honestly. The actionable
 finding is in the pixel-domain channels.
 
-Across all four datasets, 945 of 945 files (100 percent) score MODERATE or higher (39 plus 17
-plus 116 plus 58 = 230 of 945, or 24.3 percent, in the HIGH band). The HIGH band is dominated by
-brain MR; the bulk of every other dataset clusters in the MODERATE band because of the tag
-floor.
+Across all five datasets, 1,045 of 1,045 files (100 percent) score MODERATE or higher (39 plus
+17 plus 116 plus 58 plus 50 = 280 of 1,045, or 26.8 percent, in the HIGH band). The HIGH band is
+dominated by brain MR (where the facial channel fires) and by mammography (where half of
+CBIS-DDSM cleared the burned-in threshold); the bulk of every other dataset clusters in the
+MODERATE band because of the tag floor.
 
 ### 5.2 The anonymizer comparison
 
@@ -274,13 +286,17 @@ Combining sections 5.1 and 5.2, the empirical situation is as follows. Any curre
 TCIA-style tag anonymization, including dicognito, RSNA CTP, and pydicom-based scrubbers, breaks
 the linkage to the real patient record (which is the tag channel) but leaves the pixels
 byte-identical. The pixel-domain channels we measured (facial geometry on 96.7 percent of brain
-MR, burned-in pixel text on 89.3 percent of chest radiographs, 22.5 percent of brain MR, 17.0
-percent of abdomen CT, and 8.0 percent of chest CT) are therefore present in publicly released
-"de-identified" data, are not removed by any of those tools, and are large enough in the head-MR
-case that commercial face recognition has already been demonstrated to re-identify research
-participants at up to 98 percent from publicly de-identified head MRI [3]. The factor-of-two
-difference between body regions of the same modality (8.0 percent versus 17.0 percent on chest
-versus abdomen CT) is direct evidence that no modality-level policy is sufficient.
+MR, burned-in pixel text on 89.3 percent of chest radiographs, 52.0 percent of mammograms, 22.5
+percent of brain MR, 17.0 percent of abdomen CT, and 8.0 percent of chest CT) are therefore
+present in publicly released "de-identified" data, are not removed by any of those tools, and
+are large enough in the head-MR case that commercial face recognition has already been
+demonstrated to re-identify research participants at up to 98 percent from publicly
+de-identified head MRI [3]. The factor-of-two difference between body regions of the same
+modality (8.0 percent versus 17.0 percent on chest versus abdomen CT) is direct evidence that
+no modality-level policy alone is sufficient, and the more than order-of-magnitude span across
+modalities (8 percent on chest CT to 89 percent on chest radiography, with mammography at 52
+percent in between) is direct evidence that no body-region-level policy alone is sufficient
+either.
 
 ## 6. Discussion
 
@@ -306,11 +322,15 @@ TCIA floor we report) and by the pixel-domain channels (the actionable signal). 
 wants a different score weighting or a different burn-in heuristic can swap them and re-run.
 
 A second observation, narrower but useful, is that pixel-domain residual risk varies by body
-region within a single modality. The 8.0 versus 17.0 percent burn-in rate on chest versus
-abdomen CT, on otherwise comparable scanners released by the same archive under the same
-de-identification policy, suggests that scanner protocols (the operator overlays, the
-manufacturer-default text annotations) carry through to the released data and that any
-modality-level policy will underweight some body regions and overweight others.
+region within a single modality and by modality and overlay convention across modalities. The
+8.0 versus 17.0 percent burn-in rate on chest versus abdomen CT, on otherwise comparable
+scanners released by the same archive under the same de-identification policy, suggests that
+scanner protocols (the operator overlays, the manufacturer-default text annotations) carry
+through to the released data and that any modality-level policy will underweight some body
+regions and overweight others. Mammography sharpens the picture: at 52.0 percent burn-in it
+sits between chest CT (8 percent) and chest radiography (89 percent), so the gap is not only
+within-modality. Both axes, body region within a modality and modality with its overlay
+convention, leave a non-trivial residual that no single-axis policy can fix.
 
 ## 7. Limitations and threats to validity
 
@@ -444,3 +464,7 @@ a primary measurement, it is cited as such in the text.
     cohort: advanced MRI, clinical, genomics, and radiomics. Scientific Data 2022;9:453. The
     Cancer Imaging Archive: cancerimagingarchive.net/collection/upenn-gbm/. (Source of the 120
     brain MR used here.)
+15. Sawyer Lee R, Gimenez F, Hoogi A, Miyake KK, Gorovoy M, Rubin DL. A curated mammography
+    data set for use in computer-aided detection and diagnosis research. Scientific Data
+    2017;4:170177. doi:10.1038/sdata.2017.177. The Cancer Imaging Archive:
+    cancerimagingarchive.net/collection/cbis-ddsm/. (Source of the 100 mammograms used here.)
